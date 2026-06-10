@@ -74,6 +74,7 @@ import androidx.compose.ui.unit.dp
 import com.apkscout.app.apkmirror.ApkMirrorSource
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import java.util.Locale
 
 data class InstalledApp(
     val label: String,
@@ -85,6 +86,7 @@ data class InstalledApp(
 )
 
 data class DeviceProfile(
+    val deviceName: String,
     val sdk: Int,
     val densityDpi: Int,
     val abis: String
@@ -181,8 +183,13 @@ fun APKScoutScreen() {
                     .fillMaxSize()
                     .statusBarsPadding()
                     .navigationBarsPadding(),
-                contentPadding = PaddingValues(20.dp),
-                verticalArrangement = Arrangement.spacedBy(14.dp)
+                contentPadding = PaddingValues(
+                    start = 12.dp,
+                    top = 16.dp,
+                    end = 12.dp,
+                    bottom = 16.dp
+                ),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
                 item {
                     TopBar(
@@ -221,7 +228,7 @@ fun APKScoutScreen() {
                         includeSystemApps = includeSystemApps,
                         onIncludeSystemAppsChange = { includeSystemApps = it },
                         selectedFilter = selectedFilter,
-                        onFilterChange = { selectedFilter = it }
+                        onFilterChange = { onFilterChange(it) }
                     )
                 }
 
@@ -244,6 +251,8 @@ fun APKScoutScreen() {
     }
 }
 
+private fun onFilterChange(filter: AppListFilter): AppListFilter = filter
+
 @Composable
 fun TopBar(
     loading: Boolean,
@@ -262,9 +271,7 @@ fun TopBar(
             fontWeight = FontWeight.Bold
         )
 
-        IconButton(
-            onClick = onToggleSearch
-        ) {
+        IconButton(onClick = onToggleSearch) {
             Icon(
                 imageVector = if (searchVisible) Icons.Rounded.Close else Icons.Rounded.Search,
                 contentDescription = if (searchVisible) "Close search" else "Open search"
@@ -309,6 +316,7 @@ fun SearchBarCard(
 fun rememberDeviceProfile(context: Context): DeviceProfile {
     return remember {
         DeviceProfile(
+            deviceName = resolveDeviceName(),
             sdk = Build.VERSION.SDK_INT,
             densityDpi = context.resources.displayMetrics.densityDpi,
             abis = Build.SUPPORTED_ABIS.joinToString()
@@ -328,9 +336,11 @@ fun HeaderCard(
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             Text(
-                text = "APKMirror scout",
+                text = profile.deviceName,
                 style = MaterialTheme.typography.titleLarge,
-                fontWeight = FontWeight.Bold
+                fontWeight = FontWeight.Bold,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
             )
 
             Row(
@@ -449,7 +459,7 @@ fun InstalledAppCard(
         shape = RoundedCornerShape(24.dp)
     ) {
         Row(
-            modifier = Modifier.padding(16.dp),
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 16.dp),
             horizontalArrangement = Arrangement.spacedBy(14.dp),
             verticalAlignment = Alignment.Top
         ) {
@@ -463,9 +473,10 @@ fun InstalledAppCard(
 
             Column(
                 modifier = Modifier.weight(1f),
-                verticalArrangement = Arrangement.spacedBy(7.dp)
+                verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 Row(
+                    modifier = Modifier.fillMaxWidth(),
                     verticalAlignment = Alignment.Top
                 ) {
                     Column(
@@ -513,14 +524,19 @@ fun InstalledAppCard(
                     )
                 }
 
-                Button(
-                    onClick = onOpenAPKMirror,
-                    contentPadding = PaddingValues(
-                        horizontal = 16.dp,
-                        vertical = 8.dp
-                    )
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.End
                 ) {
-                    Text("APKMirror")
+                    Button(
+                        onClick = onOpenAPKMirror,
+                        contentPadding = PaddingValues(
+                            horizontal = 16.dp,
+                            vertical = 8.dp
+                        )
+                    ) {
+                        Text("APKMirror")
+                    }
                 }
             }
         }
@@ -543,7 +559,7 @@ fun GlassCard(content: @Composable () -> Unit) {
         shape = RoundedCornerShape(32.dp)
     ) {
         Box(
-            modifier = Modifier.padding(20.dp)
+            modifier = Modifier.padding(18.dp)
         ) {
             content()
         }
@@ -597,7 +613,7 @@ fun scanInstalledApps(
             )
         }
         .sortedWith(
-            compareBy<InstalledApp> { it.label.lowercase() }
+            compareBy<InstalledApp> { it.label.lowercase(Locale.ROOT) }
                 .thenBy { it.packageName }
         )
 }
@@ -626,4 +642,31 @@ fun openAPKMirror(
             ApkMirrorSource.searchUrl(packageName)
         )
     )
+}
+
+fun resolveDeviceName(): String {
+    val manufacturerRaw = Build.MANUFACTURER.orEmpty().trim()
+    val modelRaw = Build.MODEL.orEmpty().trim()
+
+    val manufacturer = manufacturerRaw
+        .lowercase(Locale.ROOT)
+        .replaceFirstChar { it.titlecase(Locale.ROOT) }
+
+    if (manufacturer.isBlank() && modelRaw.isBlank()) {
+        return "This device"
+    }
+
+    if (manufacturer.isBlank()) {
+        return modelRaw
+    }
+
+    if (modelRaw.isBlank()) {
+        return manufacturer
+    }
+
+    return if (modelRaw.startsWith(manufacturerRaw, ignoreCase = true)) {
+        modelRaw
+    } else {
+        "$manufacturer $modelRaw"
+    }
 }
