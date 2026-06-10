@@ -1,4 +1,4 @@
-package com.pngs.apkscout
+package com.apkscout.app
 
 import android.content.Context
 import android.content.Intent

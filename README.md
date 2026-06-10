@@ -19,7 +19,7 @@ Early Android 16+ Kotlin/Compose scaffold.
 
 ## Package
 
-`com.pngs.apkscout`
+`com.apkscout.app`
 
 ## Release asset
 

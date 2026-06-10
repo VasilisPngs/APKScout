@@ -4,11 +4,11 @@ plugins {
 }
 
 android {
-    namespace = "com.pngs.apkscout"
+    namespace = "com.apkscout.app"
     compileSdk = 36
 
     defaultConfig {
-        applicationId = "com.pngs.apkscout"
+        applicationId = "com.apkscout.app"
         minSdk = 36
         targetSdk = 36
         versionCode = 1
