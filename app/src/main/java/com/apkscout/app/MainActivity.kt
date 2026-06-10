@@ -4,6 +4,7 @@ import android.content.Context
 import android.content.Intent
 import android.content.pm.ApplicationInfo
 import android.content.pm.PackageManager
+import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import com.apkscout.app.core.model.ApkFormat
@@ -193,7 +194,13 @@ fun APKScoutScreen() {
                                 updateStates = updateStates + (app.packageName to result)
                             }
                         },
-                        onOpenSource = { openAPKMirror(context, app.packageName) }
+                        onOpenSource = {
+                            openAPKMirror(
+                                context = context,
+                                packageName = app.packageName,
+                                status = updateStates[app.packageName] ?: AppUpdateStatus.NotChecked
+                            )
+                        }
                     )
                 }
             }
@@ -429,7 +436,7 @@ fun InstalledAppCard(
                     onClick = onOpenSource,
                     modifier = Modifier.weight(1f)
                 ) {
-                    Text("Open APKMirror")
+                    Text(openActionLabel(status))
                 }
             }
         }
@@ -457,7 +464,7 @@ fun UpdateStatusBlock(status: AppUpdateStatus) {
     val description = when (status) {
         AppUpdateStatus.NotChecked -> "APKMirror has not been checked yet."
         AppUpdateStatus.Checking -> "Searching APKMirror for compatible APK variants."
-        is AppUpdateStatus.UpdateAvailable -> "Latest compatible APK: ${status.versionName} (${status.versionCode})"
+        is AppUpdateStatus.UpdateAvailable -> "Latest compatible APK: ${status.versionName} (${status.versionCode}). Ready to open exact APKMirror page."
         is AppUpdateStatus.SearchResultsFound -> "${status.count} APKMirror release links found. Release parser is not connected yet."
         is AppUpdateStatus.ReleasePageLoaded -> "Release page fetched. Variant parser is not connected yet."
         is AppUpdateStatus.ReleaseMetadataParsed -> {
@@ -507,6 +514,18 @@ fun UpdateStatusBlock(status: AppUpdateStatus) {
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
         }
+    }
+}
+
+
+fun openActionLabel(status: AppUpdateStatus): String {
+    return when (status) {
+        is AppUpdateStatus.UpdateAvailable -> "Open APK page"
+        is AppUpdateStatus.CompatibleApkCandidatesParsed,
+        is AppUpdateStatus.ReleaseMetadataParsed,
+        is AppUpdateStatus.ReleasePageLoaded,
+        is AppUpdateStatus.VariantLinksParsed -> "Open release"
+        else -> "Open APKMirror"
     }
 }
 
@@ -565,9 +584,19 @@ fun scanInstalledApps(
 
 fun openAPKMirror(
     context: Context,
-    packageName: String
+    packageName: String,
+    status: AppUpdateStatus
 ) {
+    val uri = when (status) {
+        is AppUpdateStatus.UpdateAvailable -> Uri.parse(status.webUrl)
+        is AppUpdateStatus.CompatibleApkCandidatesParsed -> Uri.parse(status.releaseUrl)
+        is AppUpdateStatus.ReleaseMetadataParsed -> Uri.parse(status.releaseUrl)
+        is AppUpdateStatus.ReleasePageLoaded -> Uri.parse(status.releaseUrl)
+        is AppUpdateStatus.VariantLinksParsed -> Uri.parse(status.releaseUrl)
+        else -> ApkMirrorSource.searchUrl(packageName)
+    }
+
     context.startActivity(
-        Intent(Intent.ACTION_VIEW, ApkMirrorSource.searchUrl(packageName))
+        Intent(Intent.ACTION_VIEW, uri)
     )
 }

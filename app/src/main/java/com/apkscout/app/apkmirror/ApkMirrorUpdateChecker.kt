@@ -162,7 +162,8 @@ object ApkMirrorUpdateChecker {
                         AppUpdateStatus.UpdateAvailable(
                             versionName = candidate.versionName,
                             versionCode = versionCode,
-                            format = candidate.format
+                            format = candidate.format,
+                            webUrl = candidate.webUrl
                         )
                     } else {
                         AppUpdateStatus.UpToDate

@@ -7,7 +7,8 @@ sealed interface AppUpdateStatus {
     data class UpdateAvailable(
         val versionName: String,
         val versionCode: Long,
-        val format: ApkFormat
+        val format: ApkFormat,
+        val webUrl: String
     ) : AppUpdateStatus
 
     data class SearchResultsFound(
