@@ -9,7 +9,7 @@ Android 16+ Kotlin/Compose app.
 ## Current behavior
 
 - Scans installed Android apps locally
-- Shows app icon, app label, package name, version name, version code, and user/system status
+- Shows app icon, app label, package name, version name, version code, and compact user/system status
 - Shows device SDK, DPI, and ABI profile
 - Searches installed apps by app name or package name
 - Rescans installed apps from the top refresh action

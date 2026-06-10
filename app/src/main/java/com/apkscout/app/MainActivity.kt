@@ -33,9 +33,9 @@ import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.Refresh
 import androidx.compose.material.icons.rounded.Search
 import androidx.compose.material3.AssistChip
@@ -64,7 +64,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.platform.LocalContext
@@ -137,6 +136,7 @@ fun APKScoutScreen() {
     var includeSystemApps by remember { mutableStateOf(false) }
     var selectedFilter by remember { mutableStateOf(AppListFilter.ALL) }
     var searchQuery by remember { mutableStateOf("") }
+    var searchVisible by remember { mutableStateOf(false) }
     var scanRequest by remember { mutableIntStateOf(0) }
     var apps by remember { mutableStateOf<List<InstalledApp>>(emptyList()) }
     var loading by remember { mutableStateOf(true) }
@@ -187,8 +187,24 @@ fun APKScoutScreen() {
                 item {
                     TopBar(
                         loading = loading,
+                        searchVisible = searchVisible,
+                        onToggleSearch = {
+                            searchVisible = !searchVisible
+                            if (!searchVisible) {
+                                searchQuery = ""
+                            }
+                        },
                         onRefresh = { scanRequest++ }
                     )
+                }
+
+                if (searchVisible) {
+                    item {
+                        SearchBarCard(
+                            query = searchQuery,
+                            onQueryChange = { searchQuery = it }
+                        )
+                    }
                 }
 
                 item {
@@ -205,9 +221,7 @@ fun APKScoutScreen() {
                         includeSystemApps = includeSystemApps,
                         onIncludeSystemAppsChange = { includeSystemApps = it },
                         selectedFilter = selectedFilter,
-                        onFilterChange = { selectedFilter = it },
-                        searchQuery = searchQuery,
-                        onSearchQueryChange = { searchQuery = it }
+                        onFilterChange = { selectedFilter = it }
                     )
                 }
 
@@ -233,6 +247,8 @@ fun APKScoutScreen() {
 @Composable
 fun TopBar(
     loading: Boolean,
+    searchVisible: Boolean,
+    onToggleSearch: () -> Unit,
     onRefresh: () -> Unit
 ) {
     Row(
@@ -247,6 +263,15 @@ fun TopBar(
         )
 
         IconButton(
+            onClick = onToggleSearch
+        ) {
+            Icon(
+                imageVector = if (searchVisible) Icons.Rounded.Close else Icons.Rounded.Search,
+                contentDescription = if (searchVisible) "Close search" else "Open search"
+            )
+        }
+
+        IconButton(
             onClick = onRefresh,
             enabled = !loading
         ) {
@@ -255,6 +280,28 @@ fun TopBar(
                 contentDescription = "Refresh apps"
             )
         }
+    }
+}
+
+@Composable
+fun SearchBarCard(
+    query: String,
+    onQueryChange: (String) -> Unit
+) {
+    GlassCard {
+        OutlinedTextField(
+            value = query,
+            onValueChange = onQueryChange,
+            modifier = Modifier.fillMaxWidth(),
+            singleLine = true,
+            label = { Text("Search apps") },
+            leadingIcon = {
+                Icon(
+                    imageVector = Icons.Rounded.Search,
+                    contentDescription = null
+                )
+            }
+        )
     }
 }
 
@@ -284,12 +331,6 @@ fun HeaderCard(
                 text = "APKMirror scout",
                 style = MaterialTheme.typography.titleLarge,
                 fontWeight = FontWeight.Bold
-            )
-
-            Text(
-                text = "Local app inventory with direct APKMirror lookup.",
-                style = MaterialTheme.typography.bodyLarge,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
             )
 
             Row(
@@ -332,31 +373,14 @@ fun ControlsCard(
     includeSystemApps: Boolean,
     onIncludeSystemAppsChange: (Boolean) -> Unit,
     selectedFilter: AppListFilter,
-    onFilterChange: (AppListFilter) -> Unit,
-    searchQuery: String,
-    onSearchQueryChange: (String) -> Unit
+    onFilterChange: (AppListFilter) -> Unit
 ) {
     GlassCard {
         Column(
             verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
-            OutlinedTextField(
-                value = searchQuery,
-                onValueChange = onSearchQueryChange,
-                modifier = Modifier.fillMaxWidth(),
-                singleLine = true,
-                label = { Text("Search apps") },
-                leadingIcon = {
-                    Icon(
-                        imageVector = Icons.Rounded.Search,
-                        contentDescription = null
-                    )
-                }
-            )
-
             SettingRow(
                 title = "Show system apps",
-                description = "Hidden by default to avoid OEM and core Android noise.",
                 checked = includeSystemApps,
                 onCheckedChange = onIncludeSystemAppsChange
             )
@@ -382,12 +406,6 @@ fun ControlsCard(
                     label = { Text("System") }
                 )
             }
-
-            Text(
-                text = "APKMirror automated checks are blocked by server-side protection. Use Open APKMirror per app.",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
         }
     }
 }
@@ -395,7 +413,6 @@ fun ControlsCard(
 @Composable
 fun SettingRow(
     title: String,
-    description: String,
     checked: Boolean,
     onCheckedChange: (Boolean) -> Unit
 ) {
@@ -403,22 +420,12 @@ fun SettingRow(
         modifier = Modifier.fillMaxWidth(),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Column(
+        Text(
+            text = title,
             modifier = Modifier.weight(1f),
-            verticalArrangement = Arrangement.spacedBy(4.dp)
-        ) {
-            Text(
-                text = title,
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.SemiBold
-            )
-
-            Text(
-                text = description,
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-        }
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.SemiBold
+        )
 
         Spacer(modifier = Modifier.width(16.dp))
 
@@ -446,31 +453,17 @@ fun InstalledAppCard(
             horizontalArrangement = Arrangement.spacedBy(14.dp),
             verticalAlignment = Alignment.Top
         ) {
-            Surface(
-                modifier = Modifier.size(58.dp),
-                shape = CircleShape,
-                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.72f),
-                tonalElevation = 2.dp
-            ) {
-                Box(
-                    modifier = Modifier.fillMaxSize(),
-                    contentAlignment = Alignment.Center
-                ) {
-                    app.icon?.let {
-                        Image(
-                            bitmap = it.asImageBitmap(),
-                            contentDescription = null,
-                            modifier = Modifier
-                                .size(52.dp)
-                                .clip(CircleShape)
-                        )
-                    }
-                }
+            app.icon?.let {
+                Image(
+                    bitmap = it.asImageBitmap(),
+                    contentDescription = null,
+                    modifier = Modifier.size(56.dp)
+                )
             }
 
             Column(
                 modifier = Modifier.weight(1f),
-                verticalArrangement = Arrangement.spacedBy(8.dp)
+                verticalArrangement = Arrangement.spacedBy(7.dp)
             ) {
                 Row(
                     verticalAlignment = Alignment.Top
@@ -496,11 +489,11 @@ fun InstalledAppCard(
                         )
                     }
 
-                    Spacer(modifier = Modifier.width(10.dp))
+                    Spacer(modifier = Modifier.width(8.dp))
 
                     AssistChip(
                         onClick = {},
-                        label = { Text(if (app.isSystem) "System" else "User") }
+                        label = { Text(if (app.isSystem) "S" else "U") }
                     )
                 }
 
@@ -522,9 +515,12 @@ fun InstalledAppCard(
 
                 Button(
                     onClick = onOpenAPKMirror,
-                    modifier = Modifier.fillMaxWidth()
+                    contentPadding = PaddingValues(
+                        horizontal = 16.dp,
+                        vertical = 8.dp
+                    )
                 ) {
-                    Text("Open APKMirror")
+                    Text("APKMirror")
                 }
             }
         }
