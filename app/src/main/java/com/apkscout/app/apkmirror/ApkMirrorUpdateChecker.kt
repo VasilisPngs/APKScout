@@ -22,9 +22,22 @@ object ApkMirrorUpdateChecker {
                 } else {
                     when (val releaseResult = ApkMirrorHtmlFetcher.fetchReleasePage(firstReleaseUrl)) {
                         is ApkMirrorFetchResult.Success -> {
-                            AppUpdateStatus.ReleasePageLoaded(
+                            val metadata = ApkMirrorReleaseParser.parse(
+                                html = releaseResult.html,
                                 releaseUrl = releaseResult.url
                             )
+
+                            if (metadata == null) {
+                                AppUpdateStatus.Error(
+                                    message = "Release page loaded, but metadata could not be parsed."
+                                )
+                            } else {
+                                AppUpdateStatus.ReleaseMetadataParsed(
+                                    title = metadata.title,
+                                    versionCode = metadata.versionCode,
+                                    releaseUrl = metadata.releaseUrl
+                                )
+                            }
                         }
 
                         is ApkMirrorFetchResult.HttpError -> {

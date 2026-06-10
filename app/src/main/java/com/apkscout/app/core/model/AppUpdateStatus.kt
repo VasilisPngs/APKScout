@@ -18,6 +18,12 @@ sealed interface AppUpdateStatus {
         val releaseUrl: String
     ) : AppUpdateStatus
 
+    data class ReleaseMetadataParsed(
+        val title: String,
+        val versionCode: Long?,
+        val releaseUrl: String
+    ) : AppUpdateStatus
+
     data object UpToDate : AppUpdateStatus
     data object NoCompatibleApk : AppUpdateStatus
     data object OnlyBundleFound : AppUpdateStatus
