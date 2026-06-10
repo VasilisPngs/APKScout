@@ -446,6 +446,7 @@ fun UpdateStatusBlock(status: AppUpdateStatus) {
         is AppUpdateStatus.ReleasePageLoaded -> "APKMirror release loaded"
         is AppUpdateStatus.ReleaseMetadataParsed -> "APKMirror release parsed"
         is AppUpdateStatus.VariantLinksParsed -> "APKMirror variants parsed"
+        is AppUpdateStatus.CompatibleApkCandidatesParsed -> "Compatible APK candidates"
         AppUpdateStatus.UpToDate -> "Up to date"
         AppUpdateStatus.NoCompatibleApk -> "No compatible APK"
         AppUpdateStatus.OnlyBundleFound -> "Only bundle found"
@@ -465,6 +466,9 @@ fun UpdateStatusBlock(status: AppUpdateStatus) {
         }
         is AppUpdateStatus.VariantLinksParsed -> {
             "Release: ${status.title}. Variants found: ${status.totalCount}. Regular APK: ${status.regularApkCount}. Non-APK: ${status.nonApkCount}."
+        }
+        is AppUpdateStatus.CompatibleApkCandidatesParsed -> {
+            "Release: ${status.title}. Compatible regular APK: ${status.compatibleApkCount}/${status.regularApkCount}. Non-APK hidden: ${status.nonApkCount}."
         }
         AppUpdateStatus.UpToDate -> "Installed version is already current."
         AppUpdateStatus.NoCompatibleApk -> "No regular APK matched this device."

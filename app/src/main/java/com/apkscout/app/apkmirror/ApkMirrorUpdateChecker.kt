@@ -1,8 +1,10 @@
 package com.apkscout.app.apkmirror
 
+import com.apkscout.app.core.compat.CompatibilityPolicy
 import com.apkscout.app.core.model.ApkFormat
 import com.apkscout.app.core.model.AppUpdateStatus
 import com.apkscout.app.core.model.DeviceSpec
+import com.apkscout.app.core.model.UpdateCandidate
 
 object ApkMirrorUpdateChecker {
     suspend fun check(
@@ -42,15 +44,44 @@ object ApkMirrorUpdateChecker {
                                         releaseUrl = metadata.releaseUrl
                                     )
                                 } else {
-                                    val regularApkCount = variants.count { it.format == ApkFormat.APK }
+                                    val regularApkVariants = variants.filter { it.format == ApkFormat.APK }
+                                    val nonApkCount = variants.size - regularApkVariants.size
 
-                                    AppUpdateStatus.VariantLinksParsed(
-                                        title = metadata.title,
-                                        totalCount = variants.size,
-                                        regularApkCount = regularApkCount,
-                                        nonApkCount = variants.size - regularApkCount,
-                                        releaseUrl = metadata.releaseUrl
-                                    )
+                                    if (regularApkVariants.isEmpty() && nonApkCount > 0) {
+                                        AppUpdateStatus.OnlyBundleFound
+                                    } else {
+                                        val compatibleRegularApks = regularApkVariants.filter { variant ->
+                                            val candidate = UpdateCandidate(
+                                                packageName = packageName,
+                                                versionName = metadata.title,
+                                                versionCode = metadata.versionCode ?: installedVersionCode,
+                                                format = variant.format,
+                                                minSdk = variant.minSdk,
+                                                architectures = variant.architectures,
+                                                dpi = variant.dpi,
+                                                webUrl = variant.url
+                                            )
+
+                                            CompatibilityPolicy.isCompatible(
+                                                candidate = candidate,
+                                                device = device,
+                                                regularApkOnly = regularApkOnly
+                                            )
+                                        }
+
+                                        if (compatibleRegularApks.isEmpty()) {
+                                            AppUpdateStatus.NoCompatibleApk
+                                        } else {
+                                            AppUpdateStatus.CompatibleApkCandidatesParsed(
+                                                title = metadata.title,
+                                                totalCount = variants.size,
+                                                regularApkCount = regularApkVariants.size,
+                                                compatibleApkCount = compatibleRegularApks.size,
+                                                nonApkCount = nonApkCount,
+                                                releaseUrl = metadata.releaseUrl
+                                            )
+                                        }
+                                    }
                                 }
                             }
                         }

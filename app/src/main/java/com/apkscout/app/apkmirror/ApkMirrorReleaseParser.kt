@@ -23,6 +23,18 @@ object ApkMirrorReleaseParser {
         Regex("""\bversioncode\b[^0-9]{0,100}([0-9]{1,})""", RegexOption.IGNORE_CASE)
     )
 
+    private val architectureValues = listOf(
+        "arm64-v8a",
+        "armeabi-v7a",
+        "armeabi",
+        "x86_64",
+        "x86",
+        "universal",
+        "noarch"
+    )
+
+    private val dpiRegex = Regex("""\b(nodpi|alldpi|\d{2,4}\s*-\s*\d{2,4}dpi|\d{2,4}dpi)\b""", RegexOption.IGNORE_CASE)
+
     fun parse(
         html: String,
         releaseUrl: String
@@ -43,11 +55,15 @@ object ApkMirrorReleaseParser {
                 val href = match.groupValues.getOrNull(1)?.trim().orEmpty()
                 val label = match.groupValues.getOrNull(2)?.stripHtml()?.decodeBasicEntities()?.cleanSpaces().orEmpty()
                 val url = normalizeVariantUrl(href) ?: return@mapNotNull null
+                val context = html.contextAround(match.range.first, match.range.last)
 
                 ApkMirrorVariantLink(
                     url = url,
                     label = label.ifBlank { "APKMirror variant" },
-                    format = inferFormat(url)
+                    format = inferFormat(url),
+                    architectures = findArchitectures(context),
+                    dpi = findDpi(context),
+                    minSdk = findMinSdk(context)
                 )
             }
             .distinctBy { it.url }
@@ -114,6 +130,76 @@ object ApkMirrorReleaseParser {
             "-apk-download/" in lower -> ApkFormat.APK
             else -> ApkFormat.UNKNOWN
         }
+    }
+
+    private fun findArchitectures(text: String): List<String> {
+        val lower = text.lowercase()
+
+        return architectureValues
+            .filter { it in lower }
+            .distinct()
+    }
+
+    private fun findDpi(text: String): String? {
+        return dpiRegex
+            .find(text)
+            ?.value
+            ?.lowercase()
+            ?.replace(Regex("""\s+"""), "")
+    }
+
+    private fun findMinSdk(text: String): Int? {
+        val normalized = text.stripHtml().decodeBasicEntities().cleanSpaces()
+
+        Regex("""Android\s+([0-9]+)(?:\.[0-9]+)?\+""", RegexOption.IGNORE_CASE)
+            .find(normalized)
+            ?.groupValues
+            ?.getOrNull(1)
+            ?.toIntOrNull()
+            ?.let { major ->
+                return androidMajorToSdk(major)
+            }
+
+        Regex("""min(?:imum)?\s*SDK[^0-9]{0,40}([0-9]{1,2})""", RegexOption.IGNORE_CASE)
+            .find(normalized)
+            ?.groupValues
+            ?.getOrNull(1)
+            ?.toIntOrNull()
+            ?.let { return it }
+
+        return null
+    }
+
+    private fun androidMajorToSdk(major: Int): Int? {
+        return when (major) {
+            1 -> 1
+            2 -> 5
+            3 -> 11
+            4 -> 14
+            5 -> 21
+            6 -> 23
+            7 -> 24
+            8 -> 26
+            9 -> 28
+            10 -> 29
+            11 -> 30
+            12 -> 31
+            13 -> 33
+            14 -> 34
+            15 -> 35
+            16 -> 36
+            else -> null
+        }
+    }
+
+    private fun String.contextAround(
+        start: Int,
+        end: Int
+    ): String {
+        val safeStart = (start - 1_200).coerceAtLeast(0)
+        val safeEnd = (end + 1_200).coerceAtMost(length)
+
+        return substring(safeStart, safeEnd)
     }
 
     private fun String.stripHtml(): String {

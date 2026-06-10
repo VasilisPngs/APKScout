@@ -5,5 +5,8 @@ import com.apkscout.app.core.model.ApkFormat
 data class ApkMirrorVariantLink(
     val url: String,
     val label: String,
-    val format: ApkFormat
+    val format: ApkFormat,
+    val architectures: List<String>,
+    val dpi: String?,
+    val minSdk: Int?
 )
