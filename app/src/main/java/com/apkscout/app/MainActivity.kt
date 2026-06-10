@@ -753,6 +753,7 @@ fun UpdateStatusBlock(status: AppUpdateStatus) {
         is AppUpdateStatus.ReleaseMetadataParsed -> "APKMirror release parsed"
         is AppUpdateStatus.VariantLinksParsed -> "APKMirror variants parsed"
         is AppUpdateStatus.CompatibleApkCandidatesParsed -> "Compatible APK candidates"
+        is AppUpdateStatus.AutomatedCheckBlocked -> "Automated check blocked"
         AppUpdateStatus.UpToDate -> "Up to date"
         AppUpdateStatus.NoCompatibleApk -> "No compatible APK"
         AppUpdateStatus.OnlyBundleFound -> "Only bundle found"
@@ -776,6 +777,7 @@ fun UpdateStatusBlock(status: AppUpdateStatus) {
         is AppUpdateStatus.CompatibleApkCandidatesParsed -> {
             "Release: ${status.title}. Compatible regular APK: ${status.compatibleApkCount}/${status.regularApkCount}. Version code check not confirmed yet. Non-APK hidden: ${status.nonApkCount}."
         }
+        is AppUpdateStatus.AutomatedCheckBlocked -> status.message
         AppUpdateStatus.UpToDate -> "Installed version is already current."
         AppUpdateStatus.NoCompatibleApk -> "No regular APK matched this device."
         AppUpdateStatus.OnlyBundleFound -> "Latest result requires bundle handling."
