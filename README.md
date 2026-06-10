@@ -22,4 +22,4 @@ Android 16+ Kotlin/Compose app.
 
 ## Release asset
 
-`APKScout-v0.2.3.apk`
+`APKScout-v0.2.4.apk`
