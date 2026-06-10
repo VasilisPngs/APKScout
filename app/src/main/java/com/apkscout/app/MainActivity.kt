@@ -81,6 +81,15 @@ data class DeviceProfile(
     val abis: String
 )
 
+data class UpdateSummary(
+    val total: Int,
+    val checked: Int,
+    val checking: Int,
+    val updates: Int,
+    val upToDate: Int,
+    val errors: Int
+)
+
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         enableEdgeToEdge()
@@ -113,6 +122,24 @@ fun APKScoutTheme(content: @Composable () -> Unit) {
     )
 }
 
+fun calculateUpdateSummary(
+    apps: List<InstalledApp>,
+    updateStates: Map<String, AppUpdateStatus>
+): UpdateSummary {
+    val states = apps.map { app ->
+        updateStates[app.packageName] ?: AppUpdateStatus.NotChecked
+    }
+
+    return UpdateSummary(
+        total = apps.size,
+        checked = states.count { it !is AppUpdateStatus.NotChecked && it !is AppUpdateStatus.Checking },
+        checking = states.count { it is AppUpdateStatus.Checking },
+        updates = states.count { it is AppUpdateStatus.UpdateAvailable },
+        upToDate = states.count { it is AppUpdateStatus.UpToDate },
+        errors = states.count { it is AppUpdateStatus.Error }
+    )
+}
+
 @Composable
 fun APKScoutScreen() {
     val context = LocalContext.current
@@ -124,6 +151,13 @@ fun APKScoutScreen() {
     var apps by remember { mutableStateOf<List<InstalledApp>>(emptyList()) }
     var updateStates by remember { mutableStateOf<Map<String, AppUpdateStatus>>(emptyMap()) }
     var loading by remember { mutableStateOf(true) }
+
+    val updateSummary = remember(apps, updateStates) {
+        calculateUpdateSummary(
+            apps = apps,
+            updateStates = updateStates
+        )
+    }
 
     LaunchedEffect(includeSystemApps) {
         loading = true
@@ -172,6 +206,7 @@ fun APKScoutScreen() {
                         onIncludeSystemAppsChange = { includeSystemApps = it },
                         regularApkOnly = regularApkOnly,
                         onRegularApkOnlyChange = { regularApkOnly = it },
+                        summary = updateSummary,
                         appCount = apps.size,
                         checkingAll = checkingAll,
                         onCheckVisibleApps = {
@@ -325,6 +360,7 @@ fun ControlsCard(
     onIncludeSystemAppsChange: (Boolean) -> Unit,
     regularApkOnly: Boolean,
     onRegularApkOnlyChange: (Boolean) -> Unit,
+    summary: UpdateSummary,
     appCount: Int,
     checkingAll: Boolean,
     onCheckVisibleApps: () -> Unit
@@ -362,6 +398,12 @@ fun ControlsCard(
                     label = { Text("APK-only filter") }
                 )
             }
+
+            Text(
+                text = "Checked ${summary.checked}/${summary.total} • Checking ${summary.checking} • Updates ${summary.updates} • Up to date ${summary.upToDate} • Errors ${summary.errors}",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
 
             Button(
                 onClick = onCheckVisibleApps,
