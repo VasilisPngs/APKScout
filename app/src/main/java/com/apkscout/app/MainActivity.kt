@@ -4,9 +4,9 @@ import android.content.Context
 import android.content.Intent
 import android.content.pm.ApplicationInfo
 import android.content.pm.PackageManager
-import android.net.Uri
 import android.os.Build
 import android.os.Bundle
+import com.apkscout.app.apkmirror.ApkMirrorSource
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
@@ -443,15 +443,7 @@ fun openAPKMirror(
     context: Context,
     packageName: String
 ) {
-    val uri = Uri.Builder()
-        .scheme("https")
-        .authority("www.apkmirror.com")
-        .appendQueryParameter("post_type", "app_release")
-        .appendQueryParameter("searchtype", "apk")
-        .appendQueryParameter("s", packageName)
-        .build()
-
     context.startActivity(
-        Intent(Intent.ACTION_VIEW, uri)
+        Intent(Intent.ACTION_VIEW, ApkMirrorSource.searchUrl(packageName))
     )
 }
