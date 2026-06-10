@@ -4,19 +4,14 @@ import android.content.Context
 import android.content.Intent
 import android.content.pm.ApplicationInfo
 import android.content.pm.PackageManager
-import android.net.Uri
 import android.os.Build
 import android.os.Bundle
-import com.apkscout.app.core.model.ApkFormat
-import com.apkscout.app.core.model.DeviceSpec
-import com.apkscout.app.core.model.AppUpdateStatus
-import com.apkscout.app.apkmirror.ApkMirrorUpdateChecker
-import com.apkscout.app.apkmirror.ApkMirrorSource
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -26,7 +21,6 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBarsPadding
@@ -62,9 +56,8 @@ import androidx.compose.ui.platform.LocalInspectionMode
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import com.apkscout.app.apkmirror.ApkMirrorSource
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 data class InstalledApp(
@@ -81,28 +74,10 @@ data class DeviceProfile(
     val abis: String
 )
 
-private const val APKMIRROR_CHECK_CACHE_TTL_MS = 15L * 60L * 1000L
-
-data class UpdateSummary(
-    val total: Int,
-    val checked: Int,
-    val checking: Int,
-    val updates: Int,
-    val upToDate: Int,
-    val errors: Int
-)
-
-data class CachedUpdateResult(
-    val status: AppUpdateStatus,
-    val checkedAtMillis: Long,
-    val regularApkOnly: Boolean
-)
-
 enum class AppListFilter {
     ALL,
-    UPDATES,
-    UNCHECKED,
-    ERRORS
+    USER,
+    SYSTEM
 }
 
 class MainActivity : ComponentActivity() {
@@ -122,7 +97,7 @@ class MainActivity : ComponentActivity() {
 fun APKScoutTheme(content: @Composable () -> Unit) {
     val context = LocalContext.current
     val isPreview = LocalInspectionMode.current
-    val dark = androidx.compose.foundation.isSystemInDarkTheme()
+    val dark = isSystemInDarkTheme()
 
     val colors = when {
         isPreview && dark -> darkColorScheme()
@@ -137,133 +112,32 @@ fun APKScoutTheme(content: @Composable () -> Unit) {
     )
 }
 
-fun filterAndSortApps(
-    apps: List<InstalledApp>,
-    updateStates: Map<String, AppUpdateStatus>,
-    filter: AppListFilter
-): List<InstalledApp> {
-    return apps
-        .filter { app ->
-            val status = updateStates[app.packageName] ?: AppUpdateStatus.NotChecked
-
-            when (filter) {
-                AppListFilter.ALL -> true
-                AppListFilter.UPDATES -> status is AppUpdateStatus.UpdateAvailable
-                AppListFilter.UNCHECKED -> status is AppUpdateStatus.NotChecked
-                AppListFilter.ERRORS -> status is AppUpdateStatus.Error
-            }
-        }
-        .sortedWith(
-            compareBy<InstalledApp> { app ->
-                updatePriority(updateStates[app.packageName] ?: AppUpdateStatus.NotChecked)
-            }.thenBy { app ->
-                app.label.lowercase()
-            }.thenBy { app ->
-                app.packageName
-            }
-        )
-}
-
-fun updatePriority(status: AppUpdateStatus): Int {
-    return when (status) {
-        is AppUpdateStatus.UpdateAvailable -> 0
-        AppUpdateStatus.Checking -> 1
-        is AppUpdateStatus.Error -> 2
-        AppUpdateStatus.NotChecked -> 3
-        AppUpdateStatus.UpToDate -> 4
-        else -> 5
-    }
-}
-
-fun CachedUpdateResult?.freshStatus(
-    regularApkOnly: Boolean
-): AppUpdateStatus? {
-    if (this == null) return null
-    if (this.regularApkOnly != regularApkOnly) return null
-
-    val ageMillis = System.currentTimeMillis() - checkedAtMillis
-
-    if (ageMillis !in 0..APKMIRROR_CHECK_CACHE_TTL_MS) return null
-
-    return status
-}
-
-fun AppUpdateStatus.toCacheEntry(
-    regularApkOnly: Boolean
-): CachedUpdateResult? {
-    if (!isReusableCachedResult()) return null
-
-    return CachedUpdateResult(
-        status = this,
-        checkedAtMillis = System.currentTimeMillis(),
-        regularApkOnly = regularApkOnly
-    )
-}
-
-fun AppUpdateStatus.isReusableCachedResult(): Boolean {
-    return when (this) {
-        AppUpdateStatus.NotChecked,
-        AppUpdateStatus.Checking -> false
-        is AppUpdateStatus.Error -> false
-        is AppUpdateStatus.AutomatedCheckBlocked -> false
-        else -> true
-    }
-}
-
-fun calculateUpdateSummary(
-    apps: List<InstalledApp>,
-    updateStates: Map<String, AppUpdateStatus>
-): UpdateSummary {
-    val states = apps.map { app ->
-        updateStates[app.packageName] ?: AppUpdateStatus.NotChecked
-    }
-
-    return UpdateSummary(
-        total = apps.size,
-        checked = states.count { it !is AppUpdateStatus.NotChecked && it !is AppUpdateStatus.Checking },
-        checking = states.count { it is AppUpdateStatus.Checking },
-        updates = states.count { it is AppUpdateStatus.UpdateAvailable },
-        upToDate = states.count { it is AppUpdateStatus.UpToDate },
-        errors = states.count { it is AppUpdateStatus.Error }
-    )
-}
-
 @Composable
 fun APKScoutScreen() {
     val context = LocalContext.current
     val profile = rememberDeviceProfile(context)
+
     var includeSystemApps by remember { mutableStateOf(false) }
-    var regularApkOnly by remember { mutableStateOf(true) }
-    var checkingAll by remember { mutableStateOf(false) }
-    var appListFilter by remember { mutableStateOf(AppListFilter.ALL) }
-    val scope = androidx.compose.runtime.rememberCoroutineScope()
+    var selectedFilter by remember { mutableStateOf(AppListFilter.ALL) }
     var apps by remember { mutableStateOf<List<InstalledApp>>(emptyList()) }
-    var updateStates by remember { mutableStateOf<Map<String, AppUpdateStatus>>(emptyMap()) }
-    var checkCache by remember { mutableStateOf<Map<String, CachedUpdateResult>>(emptyMap()) }
     var loading by remember { mutableStateOf(true) }
-
-    val updateSummary = remember(apps, updateStates) {
-        calculateUpdateSummary(
-            apps = apps,
-            updateStates = updateStates
-        )
-    }
-
-    val visibleApps = remember(apps, updateStates, appListFilter) {
-        filterAndSortApps(
-            apps = apps,
-            updateStates = updateStates,
-            filter = appListFilter
-        )
-    }
 
     LaunchedEffect(includeSystemApps) {
         loading = true
         apps = withContext(Dispatchers.Default) {
-            scanInstalledApps(context.packageManager, includeSystemApps)
+            scanInstalledApps(
+                packageManager = context.packageManager,
+                includeSystemApps = includeSystemApps
+            )
         }
-        updateStates = apps.associate { it.packageName to AppUpdateStatus.NotChecked }
         loading = false
+    }
+
+    val visibleApps = remember(apps, selectedFilter) {
+        filterApps(
+            apps = apps,
+            filter = selectedFilter
+        )
     }
 
     Scaffold(
@@ -274,7 +148,7 @@ fun APKScoutScreen() {
                 .fillMaxSize()
                 .background(
                     Brush.verticalGradient(
-                        listOf(
+                        colors = listOf(
                             MaterialTheme.colorScheme.surface,
                             MaterialTheme.colorScheme.surfaceVariant
                         )
@@ -293,7 +167,8 @@ fun APKScoutScreen() {
                 item {
                     HeaderCard(
                         profile = profile,
-                        appCount = apps.size,
+                        totalCount = apps.size,
+                        visibleCount = visibleApps.size,
                         loading = loading
                     )
                 }
@@ -302,58 +177,8 @@ fun APKScoutScreen() {
                     ControlsCard(
                         includeSystemApps = includeSystemApps,
                         onIncludeSystemAppsChange = { includeSystemApps = it },
-                        regularApkOnly = regularApkOnly,
-                        onRegularApkOnlyChange = { regularApkOnly = it },
-                        summary = updateSummary,
-                        cachedCount = checkCache.size,
-                        appCount = visibleApps.size,
-                        selectedFilter = appListFilter,
-                        onFilterChange = { appListFilter = it },
-                        checkingAll = checkingAll,
-                        onCheckVisibleApps = {
-                            if (!checkingAll && apps.isNotEmpty()) {
-                                scope.launch {
-                                    checkingAll = true
-
-                                    try {
-                                        visibleApps.forEachIndexed { index, app ->
-                                            val cachedStatus = checkCache[app.packageName].freshStatus(regularApkOnly)
-
-                                            if (cachedStatus != null) {
-                                                updateStates = updateStates + (app.packageName to cachedStatus)
-                                            } else {
-                                                updateStates = updateStates + (app.packageName to AppUpdateStatus.Checking)
-
-                                                val result = runCatching {
-                                                    ApkMirrorUpdateChecker.check(
-                                                        packageName = app.packageName,
-                                                        installedVersionCode = app.versionCode,
-                                                        device = profile.toDeviceSpec(),
-                                                        regularApkOnly = regularApkOnly
-                                                    )
-                                                }.getOrElse { error ->
-                                                    AppUpdateStatus.Error(
-                                                        message = error.message ?: "Unexpected APKMirror check error"
-                                                    )
-                                                }
-
-                                                updateStates = updateStates + (app.packageName to result)
-
-                                                result.toCacheEntry(regularApkOnly)?.let { entry ->
-                                                    checkCache = checkCache + (app.packageName to entry)
-                                                }
-
-                                                if (index < apps.lastIndex) {
-                                                    delay(900)
-                                                }
-                                            }
-                                        }
-                                    } finally {
-                                        checkingAll = false
-                                    }
-                                }
-                            }
-                        }
+                        selectedFilter = selectedFilter,
+                        onFilterChange = { selectedFilter = it }
                     )
                 }
 
@@ -363,60 +188,10 @@ fun APKScoutScreen() {
                 ) { app ->
                     InstalledAppCard(
                         app = app,
-                        status = updateStates[app.packageName] ?: AppUpdateStatus.NotChecked,
-                        onCheckSource = {
-                            val cachedStatus = checkCache[app.packageName].freshStatus(regularApkOnly)
-
-                            if (cachedStatus != null) {
-                                updateStates = updateStates + (app.packageName to cachedStatus)
-                            } else {
-                                updateStates = updateStates + (app.packageName to AppUpdateStatus.Checking)
-
-                                scope.launch {
-                                    val result = ApkMirrorUpdateChecker.check(
-                                        packageName = app.packageName,
-                                        installedVersionCode = app.versionCode,
-                                        device = profile.toDeviceSpec(),
-                                        regularApkOnly = regularApkOnly
-                                    )
-
-                                    updateStates = updateStates + (app.packageName to result)
-
-                                    result.toCacheEntry(regularApkOnly)?.let { entry ->
-                                        checkCache = checkCache + (app.packageName to entry)
-                                    }
-                                }
-                            }
-                        },
-                        onRefreshSource = {
-                            updateStates = updateStates + (app.packageName to AppUpdateStatus.Checking)
-
-                            scope.launch {
-                                val result = runCatching {
-                                    ApkMirrorUpdateChecker.check(
-                                        packageName = app.packageName,
-                                        installedVersionCode = app.versionCode,
-                                        device = profile.toDeviceSpec(),
-                                        regularApkOnly = regularApkOnly
-                                    )
-                                }.getOrElse { error ->
-                                    AppUpdateStatus.Error(
-                                        message = error.message ?: "Unexpected APKMirror refresh error"
-                                    )
-                                }
-
-                                updateStates = updateStates + (app.packageName to result)
-
-                                result.toCacheEntry(regularApkOnly)?.let { entry ->
-                                    checkCache = checkCache + (app.packageName to entry)
-                                }
-                            }
-                        },
-                        onOpenSource = {
+                        onOpenAPKMirror = {
                             openAPKMirror(
                                 context = context,
-                                packageName = app.packageName,
-                                status = updateStates[app.packageName] ?: AppUpdateStatus.NotChecked
+                                packageName = app.packageName
                             )
                         }
                     )
@@ -425,15 +200,6 @@ fun APKScoutScreen() {
         }
     }
 }
-
-fun DeviceProfile.toDeviceSpec(): DeviceSpec {
-    return DeviceSpec(
-        sdk = sdk,
-        densityDpi = densityDpi,
-        abis = Build.SUPPORTED_ABIS.toList()
-    )
-}
-
 
 @Composable
 fun rememberDeviceProfile(context: Context): DeviceProfile {
@@ -449,7 +215,8 @@ fun rememberDeviceProfile(context: Context): DeviceProfile {
 @Composable
 fun HeaderCard(
     profile: DeviceProfile,
-    appCount: Int,
+    totalCount: Int,
+    visibleCount: Int,
     loading: Boolean
 ) {
     GlassCard {
@@ -463,7 +230,7 @@ fun HeaderCard(
             )
 
             Text(
-                text = "APKMirror update scout for Android apps.",
+                text = "APKMirror scout for installed Android apps.",
                 style = MaterialTheme.typography.bodyLarge,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
@@ -491,7 +258,11 @@ fun HeaderCard(
             )
 
             Text(
-                text = if (loading) "Scanning installed apps..." else "$appCount apps loaded",
+                text = when {
+                    loading -> "Scanning installed apps..."
+                    visibleCount == totalCount -> "$totalCount apps loaded"
+                    else -> "$visibleCount of $totalCount apps visible"
+                },
                 style = MaterialTheme.typography.labelLarge,
                 color = MaterialTheme.colorScheme.primary
             )
@@ -503,15 +274,8 @@ fun HeaderCard(
 fun ControlsCard(
     includeSystemApps: Boolean,
     onIncludeSystemAppsChange: (Boolean) -> Unit,
-    regularApkOnly: Boolean,
-    onRegularApkOnlyChange: (Boolean) -> Unit,
-    summary: UpdateSummary,
-    cachedCount: Int,
-    appCount: Int,
     selectedFilter: AppListFilter,
-    onFilterChange: (AppListFilter) -> Unit,
-    checkingAll: Boolean,
-    onCheckVisibleApps: () -> Unit
+    onFilterChange: (AppListFilter) -> Unit
 ) {
     GlassCard {
         Column(
@@ -524,89 +288,34 @@ fun ControlsCard(
                 onCheckedChange = onIncludeSystemAppsChange
             )
 
-            SettingRow(
-                title = "Regular APK only",
-                description = "Bundles stay hidden unless explicitly enabled later.",
-                checked = regularApkOnly,
-                onCheckedChange = onRegularApkOnlyChange
-            )
-
             Row(
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 FilterChip(
-                    selected = true,
-                    onClick = {},
-                    label = { Text("APKMirror") }
+                    selected = selectedFilter == AppListFilter.ALL,
+                    onClick = { onFilterChange(AppListFilter.ALL) },
+                    label = { Text("All") }
                 )
 
                 FilterChip(
-                    selected = regularApkOnly,
-                    onClick = { onRegularApkOnlyChange(!regularApkOnly) },
-                    label = { Text("APK only") }
+                    selected = selectedFilter == AppListFilter.USER,
+                    onClick = { onFilterChange(AppListFilter.USER) },
+                    label = { Text("User") }
+                )
+
+                FilterChip(
+                    selected = selectedFilter == AppListFilter.SYSTEM,
+                    onClick = { onFilterChange(AppListFilter.SYSTEM) },
+                    label = { Text("System") }
                 )
             }
 
-            AppFilterChips(
-                selectedFilter = selectedFilter,
-                onFilterChange = onFilterChange
-            )
-
             Text(
-                text = "Checked ${summary.checked}/${summary.total} • Checking ${summary.checking} • Updates ${summary.updates} • Up to date ${summary.upToDate} • Errors ${summary.errors} • Cached $cachedCount",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-
-            Button(
-                onClick = onCheckVisibleApps,
-                modifier = Modifier.fillMaxWidth(),
-                enabled = !checkingAll && appCount > 0
-            ) {
-                Text(if (checkingAll) "Checking visible apps" else "Check visible apps")
-            }
-
-            Text(
-                text = "Runs APKMirror checks one app at a time to avoid aggressive requests.",
+                text = "APKMirror automated checks are blocked by server-side protection. Open APKMirror manually per app.",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
         }
-    }
-}
-
-@Composable
-fun AppFilterChips(
-    selectedFilter: AppListFilter,
-    onFilterChange: (AppListFilter) -> Unit
-) {
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(8.dp)
-    ) {
-        FilterChip(
-            selected = selectedFilter == AppListFilter.ALL,
-            onClick = { onFilterChange(AppListFilter.ALL) },
-            label = { Text("All") }
-        )
-
-        FilterChip(
-            selected = selectedFilter == AppListFilter.UPDATES,
-            onClick = { onFilterChange(AppListFilter.UPDATES) },
-            label = { Text("Updates") }
-        )
-
-        FilterChip(
-            selected = selectedFilter == AppListFilter.UNCHECKED,
-            onClick = { onFilterChange(AppListFilter.UNCHECKED) },
-            label = { Text("Unchecked") }
-        )
-
-        FilterChip(
-            selected = selectedFilter == AppListFilter.ERRORS,
-            onClick = { onFilterChange(AppListFilter.ERRORS) },
-            label = { Text("Errors") }
-        )
     }
 }
 
@@ -650,10 +359,7 @@ fun SettingRow(
 @Composable
 fun InstalledAppCard(
     app: InstalledApp,
-    status: AppUpdateStatus,
-    onCheckSource: () -> Unit,
-    onRefreshSource: () -> Unit,
-    onOpenSource: () -> Unit
+    onOpenAPKMirror: () -> Unit
 ) {
     ElevatedCard(
         modifier = Modifier.fillMaxWidth(),
@@ -704,133 +410,15 @@ fun InstalledAppCard(
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
 
-            UpdateStatusBlock(status = status)
-
-            Column(
-                modifier = Modifier.fillMaxWidth(),
-                verticalArrangement = Arrangement.spacedBy(10.dp)
+            Button(
+                onClick = onOpenAPKMirror,
+                modifier = Modifier.fillMaxWidth()
             ) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(10.dp)
-                ) {
-                    Button(
-                        onClick = onCheckSource,
-                        modifier = Modifier.weight(1f),
-                        enabled = status !is AppUpdateStatus.Checking
-                    ) {
-                        Text(if (status is AppUpdateStatus.Checking) "Checking" else "Check APKMirror")
-                    }
-
-                    Button(
-                        onClick = onOpenSource,
-                        modifier = Modifier.weight(1f)
-                    ) {
-                        Text(openActionLabel(status))
-                    }
-                }
-
-                Button(
-                    onClick = onRefreshSource,
-                    modifier = Modifier.fillMaxWidth(),
-                    enabled = status !is AppUpdateStatus.Checking
-                ) {
-                    Text("Refresh APKMirror")
-                }
+                Text("Open APKMirror")
             }
         }
     }
 }
-
-@Composable
-fun UpdateStatusBlock(status: AppUpdateStatus) {
-    val title = when (status) {
-        AppUpdateStatus.NotChecked -> "Not checked"
-        AppUpdateStatus.Checking -> "Checking APKMirror"
-        is AppUpdateStatus.UpdateAvailable -> "Update available"
-        is AppUpdateStatus.SearchResultsFound -> "APKMirror releases found"
-        is AppUpdateStatus.ReleasePageLoaded -> "APKMirror release loaded"
-        is AppUpdateStatus.ReleaseMetadataParsed -> "APKMirror release parsed"
-        is AppUpdateStatus.VariantLinksParsed -> "APKMirror variants parsed"
-        is AppUpdateStatus.CompatibleApkCandidatesParsed -> "Compatible APK candidates"
-        is AppUpdateStatus.AutomatedCheckBlocked -> "Automated check blocked"
-        AppUpdateStatus.UpToDate -> "Up to date"
-        AppUpdateStatus.NoCompatibleApk -> "No compatible APK"
-        AppUpdateStatus.OnlyBundleFound -> "Only bundle found"
-        AppUpdateStatus.IncompatibleVariant -> "Incompatible variant"
-        is AppUpdateStatus.Error -> "Error"
-    }
-
-    val description = when (status) {
-        AppUpdateStatus.NotChecked -> "APKMirror has not been checked yet."
-        AppUpdateStatus.Checking -> "Searching APKMirror for compatible APK variants."
-        is AppUpdateStatus.UpdateAvailable -> "Latest compatible APK: ${status.versionName} (${status.versionCode}). Ready to open exact APKMirror page."
-        is AppUpdateStatus.SearchResultsFound -> "${status.count} APKMirror release links found. Release parser is not connected yet."
-        is AppUpdateStatus.ReleasePageLoaded -> "Release page fetched. Variant parser is not connected yet."
-        is AppUpdateStatus.ReleaseMetadataParsed -> {
-            val versionCodeText = status.versionCode?.let { "Version code: $it" } ?: "Version code not found yet"
-            "Release: ${status.title}. $versionCodeText."
-        }
-        is AppUpdateStatus.VariantLinksParsed -> {
-            "Release: ${status.title}. Variants found: ${status.totalCount}. Regular APK: ${status.regularApkCount}. Non-APK: ${status.nonApkCount}."
-        }
-        is AppUpdateStatus.CompatibleApkCandidatesParsed -> {
-            "Release: ${status.title}. Compatible regular APK: ${status.compatibleApkCount}/${status.regularApkCount}. Version code check not confirmed yet. Non-APK hidden: ${status.nonApkCount}."
-        }
-        is AppUpdateStatus.AutomatedCheckBlocked -> status.message
-        AppUpdateStatus.UpToDate -> "Installed version is already current."
-        AppUpdateStatus.NoCompatibleApk -> "No regular APK matched this device."
-        AppUpdateStatus.OnlyBundleFound -> "Latest result requires bundle handling."
-        AppUpdateStatus.IncompatibleVariant -> "Latest result does not match this device."
-        is AppUpdateStatus.Error -> status.message
-    }
-
-    val format = when (status) {
-        is AppUpdateStatus.UpdateAvailable -> "Format: ${status.format.name}"
-        AppUpdateStatus.OnlyBundleFound -> "Format: bundle"
-        else -> null
-    }
-
-    Column(
-        modifier = Modifier.fillMaxWidth(),
-        verticalArrangement = Arrangement.spacedBy(6.dp)
-    ) {
-        Text(
-            text = title,
-            style = MaterialTheme.typography.labelLarge,
-            color = MaterialTheme.colorScheme.primary,
-            fontWeight = FontWeight.SemiBold
-        )
-
-        Text(
-            text = description,
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
-        )
-
-        if (format != null) {
-            Text(
-                text = format,
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-        }
-    }
-}
-
-
-fun openActionLabel(status: AppUpdateStatus): String {
-    return when (status) {
-        is AppUpdateStatus.UpdateAvailable -> "Open APK page"
-        is AppUpdateStatus.AutomatedCheckBlocked -> "Open APKMirror"
-        is AppUpdateStatus.CompatibleApkCandidatesParsed,
-        is AppUpdateStatus.ReleaseMetadataParsed,
-        is AppUpdateStatus.ReleasePageLoaded,
-        is AppUpdateStatus.VariantLinksParsed -> "Open release"
-        else -> "Open APKMirror"
-    }
-}
-
 
 @Composable
 fun GlassCard(content: @Composable () -> Unit) {
@@ -851,6 +439,19 @@ fun GlassCard(content: @Composable () -> Unit) {
             modifier = Modifier.padding(20.dp)
         ) {
             content()
+        }
+    }
+}
+
+fun filterApps(
+    apps: List<InstalledApp>,
+    filter: AppListFilter
+): List<InstalledApp> {
+    return apps.filter { app ->
+        when (filter) {
+            AppListFilter.ALL -> true
+            AppListFilter.USER -> !app.isSystem
+            AppListFilter.SYSTEM -> app.isSystem
         }
     }
 }
@@ -886,19 +487,12 @@ fun scanInstalledApps(
 
 fun openAPKMirror(
     context: Context,
-    packageName: String,
-    status: AppUpdateStatus
+    packageName: String
 ) {
-    val uri = when (status) {
-        is AppUpdateStatus.UpdateAvailable -> Uri.parse(status.webUrl)
-        is AppUpdateStatus.CompatibleApkCandidatesParsed -> Uri.parse(status.releaseUrl)
-        is AppUpdateStatus.ReleaseMetadataParsed -> Uri.parse(status.releaseUrl)
-        is AppUpdateStatus.ReleasePageLoaded -> Uri.parse(status.releaseUrl)
-        is AppUpdateStatus.VariantLinksParsed -> Uri.parse(status.releaseUrl)
-        else -> ApkMirrorSource.searchUrl(packageName)
-    }
-
     context.startActivity(
-        Intent(Intent.ACTION_VIEW, uri)
+        Intent(
+            Intent.ACTION_VIEW,
+            ApkMirrorSource.searchUrl(packageName)
+        )
     )
 }

@@ -3,8 +3,6 @@ package com.apkscout.app.apkmirror
 import android.net.Uri
 
 object ApkMirrorSource {
-    const val name: String = "APKMirror"
-
     fun searchUrl(packageName: String): Uri {
         return Uri.Builder()
             .scheme("https")

@@ -1,23 +1,18 @@
 # APKScout
 
-APKMirror update scout for Android apps.
+APKMirror scout for installed Android apps.
 
 ## Status
 
-Early Android 16+ Kotlin/Compose app.
+Android 16+ Kotlin/Compose app.
 
 ## Current behavior
 
 - Scans installed Android apps locally
-- Opens APKMirror search pages
-- Opens APKMirror pages per app
-- Handles APKMirror automated-check blocking explicitly
-- Filters regular APK candidates
-- Rejects unsupported bundle-style formats by default
-- Compares compatible APK version codes when available
-- Caches successful APKMirror checks for 15 minutes
-- Supports per-app APKMirror refresh to bypass cache
-- Batch automated checks are disabled because APKMirror blocks automated requests
+- Shows app label, package name, version name, version code, and user/system status
+- Shows device SDK, DPI, and ABI profile
+- Opens APKMirror search pages per app
+- Keeps APKMirror automated checks disabled because direct requests are blocked
 
 ## Package
 
