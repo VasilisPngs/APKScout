@@ -541,7 +541,7 @@ fun ControlsCard(
 
                 FilterChip(
                     selected = regularApkOnly,
-                    onClick = onRegularApkOnlyChange,
+                    onClick = { onRegularApkOnlyChange(!regularApkOnly) },
                     label = { Text("APK only") }
                 )
             }
