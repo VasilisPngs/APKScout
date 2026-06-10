@@ -7,7 +7,9 @@ import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
 import com.apkscout.app.core.model.ApkFormat
+import com.apkscout.app.core.model.DeviceSpec
 import com.apkscout.app.core.model.AppUpdateStatus
+import com.apkscout.app.apkmirror.ApkMirrorUpdateChecker
 import com.apkscout.app.apkmirror.ApkMirrorSource
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -60,6 +62,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 data class InstalledApp(
@@ -114,6 +117,7 @@ fun APKScoutScreen() {
     val profile = rememberDeviceProfile(context)
     var includeSystemApps by remember { mutableStateOf(false) }
     var regularApkOnly by remember { mutableStateOf(true) }
+    val scope = androidx.compose.runtime.rememberCoroutineScope()
     var apps by remember { mutableStateOf<List<InstalledApp>>(emptyList()) }
     var updateStates by remember { mutableStateOf<Map<String, AppUpdateStatus>>(emptyMap()) }
     var loading by remember { mutableStateOf(true) }
@@ -175,6 +179,20 @@ fun APKScoutScreen() {
                     InstalledAppCard(
                         app = app,
                         status = updateStates[app.packageName] ?: AppUpdateStatus.NotChecked,
+                        onCheckSource = {
+                            updateStates = updateStates + (app.packageName to AppUpdateStatus.Checking)
+
+                            scope.launch {
+                                val result = ApkMirrorUpdateChecker.check(
+                                    packageName = app.packageName,
+                                    installedVersionCode = app.versionCode,
+                                    device = profile.toDeviceSpec(),
+                                    regularApkOnly = regularApkOnly
+                                )
+
+                                updateStates = updateStates + (app.packageName to result)
+                            }
+                        },
                         onOpenSource = { openAPKMirror(context, app.packageName) }
                     )
                 }
@@ -182,6 +200,15 @@ fun APKScoutScreen() {
         }
     }
 }
+
+fun DeviceProfile.toDeviceSpec(): DeviceSpec {
+    return DeviceSpec(
+        sdk = sdk,
+        densityDpi = densityDpi,
+        abis = Build.SUPPORTED_ABIS.toList()
+    )
+}
+
 
 @Composable
 fun rememberDeviceProfile(context: Context): DeviceProfile {
@@ -332,6 +359,7 @@ fun SettingRow(
 fun InstalledAppCard(
     app: InstalledApp,
     status: AppUpdateStatus,
+    onCheckSource: () -> Unit,
     onOpenSource: () -> Unit
 ) {
     ElevatedCard(
@@ -385,11 +413,24 @@ fun InstalledAppCard(
 
             UpdateStatusBlock(status = status)
 
-            Button(
-                onClick = onOpenSource,
-                modifier = Modifier.fillMaxWidth()
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
             ) {
-                Text("Open source search")
+                Button(
+                    onClick = onCheckSource,
+                    modifier = Modifier.weight(1f),
+                    enabled = status !is AppUpdateStatus.Checking
+                ) {
+                    Text(if (status is AppUpdateStatus.Checking) "Checking" else "Check APKMirror")
+                }
+
+                Button(
+                    onClick = onOpenSource,
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Text("Open APKMirror")
+                }
             }
         }
     }
