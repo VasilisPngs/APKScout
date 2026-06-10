@@ -24,6 +24,14 @@ sealed interface AppUpdateStatus {
         val releaseUrl: String
     ) : AppUpdateStatus
 
+    data class VariantLinksParsed(
+        val title: String,
+        val totalCount: Int,
+        val regularApkCount: Int,
+        val nonApkCount: Int,
+        val releaseUrl: String
+    ) : AppUpdateStatus
+
     data object UpToDate : AppUpdateStatus
     data object NoCompatibleApk : AppUpdateStatus
     data object OnlyBundleFound : AppUpdateStatus

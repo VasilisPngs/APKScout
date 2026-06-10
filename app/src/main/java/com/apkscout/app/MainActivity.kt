@@ -445,6 +445,7 @@ fun UpdateStatusBlock(status: AppUpdateStatus) {
         is AppUpdateStatus.SearchResultsFound -> "APKMirror releases found"
         is AppUpdateStatus.ReleasePageLoaded -> "APKMirror release loaded"
         is AppUpdateStatus.ReleaseMetadataParsed -> "APKMirror release parsed"
+        is AppUpdateStatus.VariantLinksParsed -> "APKMirror variants parsed"
         AppUpdateStatus.UpToDate -> "Up to date"
         AppUpdateStatus.NoCompatibleApk -> "No compatible APK"
         AppUpdateStatus.OnlyBundleFound -> "Only bundle found"
@@ -461,6 +462,9 @@ fun UpdateStatusBlock(status: AppUpdateStatus) {
         is AppUpdateStatus.ReleaseMetadataParsed -> {
             val versionCodeText = status.versionCode?.let { "Version code: $it" } ?: "Version code not found yet"
             "Release: ${status.title}. $versionCodeText."
+        }
+        is AppUpdateStatus.VariantLinksParsed -> {
+            "Release: ${status.title}. Variants found: ${status.totalCount}. Regular APK: ${status.regularApkCount}. Non-APK: ${status.nonApkCount}."
         }
         AppUpdateStatus.UpToDate -> "Installed version is already current."
         AppUpdateStatus.NoCompatibleApk -> "No regular APK matched this device."

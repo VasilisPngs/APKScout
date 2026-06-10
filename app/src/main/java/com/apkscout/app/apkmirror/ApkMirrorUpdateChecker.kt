@@ -1,5 +1,6 @@
 package com.apkscout.app.apkmirror
 
+import com.apkscout.app.core.model.ApkFormat
 import com.apkscout.app.core.model.AppUpdateStatus
 import com.apkscout.app.core.model.DeviceSpec
 
@@ -32,11 +33,25 @@ object ApkMirrorUpdateChecker {
                                     message = "Release page loaded, but metadata could not be parsed."
                                 )
                             } else {
-                                AppUpdateStatus.ReleaseMetadataParsed(
-                                    title = metadata.title,
-                                    versionCode = metadata.versionCode,
-                                    releaseUrl = metadata.releaseUrl
-                                )
+                                val variants = ApkMirrorReleaseParser.parseVariantLinks(releaseResult.html)
+
+                                if (variants.isEmpty()) {
+                                    AppUpdateStatus.ReleaseMetadataParsed(
+                                        title = metadata.title,
+                                        versionCode = metadata.versionCode,
+                                        releaseUrl = metadata.releaseUrl
+                                    )
+                                } else {
+                                    val regularApkCount = variants.count { it.format == ApkFormat.APK }
+
+                                    AppUpdateStatus.VariantLinksParsed(
+                                        title = metadata.title,
+                                        totalCount = variants.size,
+                                        regularApkCount = regularApkCount,
+                                        nonApkCount = variants.size - regularApkCount,
+                                        releaseUrl = metadata.releaseUrl
+                                    )
+                                }
                             }
                         }
 
