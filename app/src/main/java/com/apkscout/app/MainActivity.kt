@@ -205,6 +205,7 @@ fun AppUpdateStatus.isReusableCachedResult(): Boolean {
         AppUpdateStatus.NotChecked,
         AppUpdateStatus.Checking -> false
         is AppUpdateStatus.Error -> false
+        is AppUpdateStatus.AutomatedCheckBlocked -> false
         else -> true
     }
 }
@@ -819,6 +820,7 @@ fun UpdateStatusBlock(status: AppUpdateStatus) {
 fun openActionLabel(status: AppUpdateStatus): String {
     return when (status) {
         is AppUpdateStatus.UpdateAvailable -> "Open APK page"
+        is AppUpdateStatus.AutomatedCheckBlocked -> "Open APKMirror"
         is AppUpdateStatus.CompatibleApkCandidatesParsed,
         is AppUpdateStatus.ReleaseMetadataParsed,
         is AppUpdateStatus.ReleasePageLoaded,
