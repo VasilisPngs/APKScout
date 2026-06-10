@@ -10,6 +10,10 @@ sealed interface AppUpdateStatus {
         val format: ApkFormat
     ) : AppUpdateStatus
 
+    data class SearchResultsFound(
+        val count: Int
+    ) : AppUpdateStatus
+
     data object UpToDate : AppUpdateStatus
     data object NoCompatibleApk : AppUpdateStatus
     data object OnlyBundleFound : AppUpdateStatus

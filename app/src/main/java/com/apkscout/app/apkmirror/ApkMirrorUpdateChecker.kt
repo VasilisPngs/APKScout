@@ -14,13 +14,13 @@ object ApkMirrorUpdateChecker {
 
         return when (result) {
             is ApkMirrorFetchResult.Success -> {
-                if (result.html.contains("APKMirror", ignoreCase = true)) {
-                    AppUpdateStatus.Error(
-                        message = "APKMirror search loaded. Parser is not connected yet."
-                    )
+                val links = ApkMirrorSearchParser.parseReleaseLinks(result.html)
+
+                if (links.isEmpty()) {
+                    AppUpdateStatus.NoCompatibleApk
                 } else {
-                    AppUpdateStatus.Error(
-                        message = "APKMirror returned an unexpected page."
+                    AppUpdateStatus.SearchResultsFound(
+                        count = links.size
                     )
                 }
             }
