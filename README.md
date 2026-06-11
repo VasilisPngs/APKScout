@@ -19,6 +19,7 @@ Android 16+ Kotlin/Compose app.
 - Rescans installed apps and checks updates from the top refresh action
 - Supports manual light/dark theme switching
 - Uses bottom navigation for Home, Search, and Settings
+- Search tab uses global app search without Home filters
 - Opens APKMirror release pages for found updates and APKMirror search pages otherwise
 
 ## Package
@@ -27,4 +28,4 @@ Android 16+ Kotlin/Compose app.
 
 ## Release asset
 
-`APKScout-v0.3.8.apk`
+`APKScout-v0.3.9.apk`
