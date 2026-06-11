@@ -54,6 +54,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
+import androidx.compose.material3.NavigationBarItemDefaults
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
@@ -117,6 +118,7 @@ enum class AppListFilter {
 
 private enum class RootScreen {
     HOME,
+    SEARCH,
     SETTINGS
 }
 
@@ -201,11 +203,13 @@ fun APKScoutRoot(
         }
     ) { innerPadding ->
         when (currentScreen) {
-            RootScreen.HOME -> {
+            RootScreen.HOME,
+            RootScreen.SEARCH -> {
                 APKScoutScreen(
                     modifier = Modifier.padding(innerPadding),
                     releaseSettings = releaseSettings,
                     darkMode = darkMode,
+                    searchActive = currentScreen == RootScreen.SEARCH,
                     onDarkModeChange = onDarkModeChange
                 )
             }
@@ -274,7 +278,31 @@ private fun APKScoutBottomBar(
                     )
                 },
                 label = null,
-                alwaysShowLabel = false
+                alwaysShowLabel = false,
+                colors = NavigationBarItemDefaults.colors(
+                    selectedIconColor = MaterialTheme.colorScheme.onSurface,
+                    unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                    indicatorColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.18f)
+                )
+            )
+
+            NavigationBarItem(
+                selected = currentScreen == RootScreen.SEARCH,
+                onClick = { onScreenChange(RootScreen.SEARCH) },
+                icon = {
+                    Icon(
+                        imageVector = Icons.Rounded.Search,
+                        contentDescription = "Search",
+                        modifier = Modifier.size(22.dp)
+                    )
+                },
+                label = null,
+                alwaysShowLabel = false,
+                colors = NavigationBarItemDefaults.colors(
+                    selectedIconColor = MaterialTheme.colorScheme.onSurface,
+                    unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                    indicatorColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.18f)
+                )
             )
 
             NavigationBarItem(
@@ -288,7 +316,12 @@ private fun APKScoutBottomBar(
                     )
                 },
                 label = null,
-                alwaysShowLabel = false
+                alwaysShowLabel = false,
+                colors = NavigationBarItemDefaults.colors(
+                    selectedIconColor = MaterialTheme.colorScheme.onSurface,
+                    unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                    indicatorColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.18f)
+                )
             )
         }
     }
@@ -299,6 +332,7 @@ fun APKScoutScreen(
     modifier: Modifier,
     releaseSettings: ReleaseChannelSettings,
     darkMode: Boolean,
+    searchActive: Boolean,
     onDarkModeChange: (Boolean) -> Unit
 ) {
     val context = LocalContext.current
@@ -306,7 +340,6 @@ fun APKScoutScreen(
 
     var selectedFilter by remember { mutableStateOf(AppListFilter.ALL) }
     var searchQuery by remember { mutableStateOf("") }
-    var searchVisible by remember { mutableStateOf(false) }
     var scanRequest by remember { mutableIntStateOf(0) }
     var updateRequest by remember { mutableIntStateOf(0) }
     var apps by remember { mutableStateOf<List<InstalledApp>>(emptyList()) }
@@ -314,6 +347,12 @@ fun APKScoutScreen(
     var updateError by remember { mutableStateOf<String?>(null) }
     var loadingApps by remember { mutableStateOf(true) }
     var checkingUpdates by remember { mutableStateOf(false) }
+
+    LaunchedEffect(searchActive) {
+        if (!searchActive) {
+            searchQuery = ""
+        }
+    }
 
     LaunchedEffect(scanRequest) {
         loadingApps = true
@@ -380,14 +419,7 @@ fun APKScoutScreen(
             item {
                 TopBar(
                     loading = loadingApps || checkingUpdates,
-                    searchVisible = searchVisible,
                     darkMode = darkMode,
-                    onToggleSearch = {
-                        searchVisible = !searchVisible
-                        if (!searchVisible) {
-                            searchQuery = ""
-                        }
-                    },
                     onToggleTheme = { onDarkModeChange(!darkMode) },
                     onRefresh = {
                         scanRequest++
@@ -396,7 +428,7 @@ fun APKScoutScreen(
                 )
             }
 
-            if (searchVisible) {
+            if (searchActive) {
                 item {
                     SearchBarCard(
                         query = searchQuery,
@@ -446,9 +478,7 @@ fun APKScoutScreen(
 @Composable
 fun TopBar(
     loading: Boolean,
-    searchVisible: Boolean,
     darkMode: Boolean,
-    onToggleSearch: () -> Unit,
     onToggleTheme: () -> Unit,
     onRefresh: () -> Unit
 ) {
@@ -462,13 +492,6 @@ fun TopBar(
             style = MaterialTheme.typography.headlineMedium,
             fontWeight = FontWeight.Bold
         )
-
-        IconButton(onClick = onToggleSearch) {
-            Icon(
-                imageVector = if (searchVisible) Icons.Rounded.Close else Icons.Rounded.Search,
-                contentDescription = if (searchVisible) "Close search" else "Open search"
-            )
-        }
 
         IconButton(onClick = onToggleTheme) {
             Icon(
@@ -500,6 +523,7 @@ fun SearchBarCard(
             onValueChange = onQueryChange,
             modifier = Modifier.fillMaxWidth(),
             singleLine = true,
+            shape = RoundedCornerShape(24.dp),
             label = { Text("Search apps") },
             leadingIcon = {
                 Icon(
@@ -563,7 +587,7 @@ fun HeaderCard(
                     loadingApps -> "Scanning installed apps..."
                     checkingUpdates -> "Checking APKMirror updates..."
                     updateError != null -> "APKMirror check failed: $updateError"
-                    visibleCount == totalCount -> "$totalCount apps loaded"
+                    visibleCount == totalCount -> "$totalCount apps found"
                     else -> "$visibleCount of $totalCount apps visible"
                 },
                 style = MaterialTheme.typography.labelLarge,
