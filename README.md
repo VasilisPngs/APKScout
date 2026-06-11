@@ -17,6 +17,7 @@ Android 16+ Kotlin/Compose app.
 - Shows Android version, DPI, and device name
 - Searches installed apps by app name or package name
 - Rescans installed apps and checks updates from the top refresh action
+- Supports manual light/dark theme switching
 - Opens APKMirror release pages for found updates and APKMirror search pages otherwise
 
 ## Package
@@ -25,4 +26,4 @@ Android 16+ Kotlin/Compose app.
 
 ## Release asset
 
-`APKScout-v0.3.6.apk`
+`APKScout-v0.3.7.apk`
