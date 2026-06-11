@@ -14,6 +14,7 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.horizontalScroll
@@ -27,6 +28,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -68,6 +70,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.asImageBitmap
@@ -76,6 +79,7 @@ import androidx.compose.ui.platform.LocalInspectionMode
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.apkscout.app.apkmirror.ApkMirrorApiClient
 import com.apkscout.app.apkmirror.ApkMirrorSource
 import com.apkscout.app.settings.ReleaseChannelFilter
@@ -163,7 +167,9 @@ fun APKScoutRoot() {
         contentWindowInsets = WindowInsets(0, 0, 0, 0),
         bottomBar = {
             NavigationBar(
-                modifier = Modifier.navigationBarsPadding()
+                modifier = Modifier.height(56.dp),
+                tonalElevation = 0.dp,
+                windowInsets = WindowInsets(0, 0, 0, 0)
             ) {
                 NavigationBarItem(
                     selected = currentScreen == RootScreen.HOME,
@@ -171,7 +177,8 @@ fun APKScoutRoot() {
                     icon = {
                         Icon(
                             imageVector = Icons.Rounded.Home,
-                            contentDescription = "Home"
+                            contentDescription = "Home",
+                            modifier = Modifier.size(22.dp)
                         )
                     },
                     label = null,
@@ -184,7 +191,8 @@ fun APKScoutRoot() {
                     icon = {
                         Icon(
                             imageVector = Icons.Rounded.Settings,
-                            contentDescription = "Settings"
+                            contentDescription = "Settings",
+                            modifier = Modifier.size(22.dp)
                         )
                     },
                     label = null,
@@ -535,33 +543,80 @@ fun ControlsCard(
 ) {
     GlassCard {
         Row(
-            modifier = Modifier.horizontalScroll(rememberScrollState()),
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(6.dp)
         ) {
-            FilterChip(
+            CompactFilterButton(
+                label = "All",
                 selected = selectedFilter == AppListFilter.ALL,
-                onClick = { onFilterChange(AppListFilter.ALL) },
-                label = { Text("All") }
+                modifier = Modifier.weight(1f),
+                onClick = { onFilterChange(AppListFilter.ALL) }
             )
 
-            FilterChip(
+            CompactFilterButton(
+                label = "User",
                 selected = selectedFilter == AppListFilter.USER,
-                onClick = { onFilterChange(AppListFilter.USER) },
-                label = { Text("User") }
+                modifier = Modifier.weight(1f),
+                onClick = { onFilterChange(AppListFilter.USER) }
             )
 
-            FilterChip(
+            CompactFilterButton(
+                label = "System",
                 selected = selectedFilter == AppListFilter.SYSTEM,
-                onClick = { onFilterChange(AppListFilter.SYSTEM) },
-                label = { Text("System") }
+                modifier = Modifier.weight(1f),
+                onClick = { onFilterChange(AppListFilter.SYSTEM) }
             )
 
-            FilterChip(
+            CompactFilterButton(
+                label = "Updates",
                 selected = selectedFilter == AppListFilter.UPDATES,
-                onClick = { onFilterChange(AppListFilter.UPDATES) },
-                label = { Text("Updates") }
+                modifier = Modifier.weight(1f),
+                onClick = { onFilterChange(AppListFilter.UPDATES) }
             )
         }
+    }
+}
+
+@Composable
+private fun CompactFilterButton(
+    label: String,
+    selected: Boolean,
+    modifier: Modifier = Modifier,
+    onClick: () -> Unit
+) {
+    val shape = RoundedCornerShape(12.dp)
+
+    Box(
+        modifier = modifier
+            .height(38.dp)
+            .clip(shape)
+            .background(
+                color = if (selected) {
+                    MaterialTheme.colorScheme.primary.copy(alpha = 0.18f)
+                } else {
+                    MaterialTheme.colorScheme.surface.copy(alpha = 0.72f)
+                },
+                shape = shape
+            )
+            .border(
+                width = 1.dp,
+                color = if (selected) {
+                    MaterialTheme.colorScheme.primary.copy(alpha = 0.55f)
+                } else {
+                    MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.70f)
+                },
+                shape = shape
+            )
+            .clickable(onClick = onClick),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(
+            text = label,
+            maxLines = 1,
+            overflow = TextOverflow.Clip,
+            fontSize = 12.sp,
+            fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Medium
+        )
     }
 }
 
