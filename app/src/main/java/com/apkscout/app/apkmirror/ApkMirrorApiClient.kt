@@ -96,19 +96,29 @@ object ApkMirrorApiClient {
         installedByPackage: Map<String, InstalledApp>
     ): Map<String, UpdateInfo> {
         val root = JSONObject(body)
-        val status = root.optInt("status", -1)
 
-        if (status != 200) {
-            error("APKMirror API status $status: ${body.cleanErrorBody()}")
+        if (root.has("status")) {
+            val status = root.optInt("status", -1)
+
+            if (status != 200) {
+                error("APKMirror API status $status: ${body.cleanErrorBody()}")
+            }
         }
 
-        val data = root.optJSONArray("data") ?: return emptyMap()
+        val data = root.optJSONArray("data")
+            ?: error("APKMirror API response missing data: ${body.cleanErrorBody()}")
+
         val updates = linkedMapOf<String, UpdateInfo>()
 
         for (index in 0 until data.length()) {
             val item = data.optJSONObject(index) ?: continue
             val packageName = item.optString("pname")
             val installed = installedByPackage[packageName] ?: continue
+
+            if (!item.optBoolean("exists", true)) {
+                continue
+            }
+
             val release = item.optJSONObject("release") ?: continue
             val apks = item.optJSONArray("apks") ?: continue
 
@@ -123,8 +133,11 @@ object ApkMirrorApiClient {
                 continue
             }
 
-            val foundVersionName = release.optString("version").takeIf { it.isNotBlank() } ?: continue
+            val foundVersionName = release.optString("version").takeIf { it.isNotBlank() }
+                ?: continue
+
             val releaseUrl = ApkMirrorSource.absoluteUrl(release.optString("link"))
+                ?: bestApk.optString("link").takeIf { it.isNotBlank() }?.let { ApkMirrorSource.absoluteUrl(it) }
                 ?: ApkMirrorSource.searchUrl(packageName).toString()
 
             updates[packageName] = UpdateInfo(
@@ -160,7 +173,7 @@ object ApkMirrorApiClient {
     }
 
     private fun JSONObject.optVersionCode(): Long? {
-        val raw = opt("version_code") ?: return null
+        val raw = opt("version_code") ?: opt("versionCode") ?: return null
 
         return when (raw) {
             is Number -> raw.toLong()
@@ -170,12 +183,27 @@ object ApkMirrorApiClient {
     }
 
     private fun isMinApiCompatible(minApi: String?): Boolean {
-        val value = minApi
-            ?.filter { it.isDigit() }
-            ?.toIntOrNull()
-            ?: return true
+        val raw = minApi?.trim().orEmpty()
 
-        return value <= Build.VERSION.SDK_INT
+        if (raw.isBlank()) return true
+
+        val apiValue = Regex("(?i)api\\s*(\\d{1,2})")
+            .find(raw)
+            ?.groupValues
+            ?.getOrNull(1)
+            ?.toIntOrNull()
+
+        if (apiValue != null) {
+            return apiValue <= Build.VERSION.SDK_INT
+        }
+
+        val directValue = raw.toIntOrNull()
+
+        if (directValue != null) {
+            return directValue <= Build.VERSION.SDK_INT
+        }
+
+        return true
     }
 
     private fun isArchitectureCompatible(arches: JSONArray?): Boolean {
@@ -191,6 +219,7 @@ object ApkMirrorApiClient {
             if (arch.isBlank()) continue
             if (arch in setOf("universal", "noarch", "all", "any")) return true
             if (arch in deviceAbis) return true
+            if (deviceAbis.any { abi -> arch.contains(abi) }) return true
         }
 
         return false
