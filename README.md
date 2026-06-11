@@ -10,11 +10,13 @@ Android 16+ Kotlin/Compose app.
 
 - Scans installed Android apps locally
 - Shows app icon, app label, package name, version name, version code, and compact user/system status
-- Shows device SDK, DPI, and ABI profile
+- Checks APKMirror update data through the APKMirror API-style backend
+- Shows installed version to found version when update data is available
+- Shows installed version code to found version code when update data is available
+- Shows device SDK, DPI, ABI profile, and device name
 - Searches installed apps by app name or package name
-- Rescans installed apps from the top refresh action
-- Opens APKMirror search pages per app
-- Keeps APKMirror automated checks disabled because direct requests are blocked
+- Rescans installed apps and checks updates from the top refresh action
+- Opens APKMirror release pages for found updates and APKMirror search pages otherwise
 
 ## Package
 
