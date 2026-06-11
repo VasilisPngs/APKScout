@@ -24,7 +24,7 @@ object ApkMirrorApiClient {
     private const val ENDPOINT = "https://www.apkmirror.com/wp-json/apkm/v1/app_exists/"
     private const val API_USER = "api-apkupdater"
     private const val API_TOKEN = "rm5rcfruUjKy04sMpyMPJXW8"
-    private const val PACKAGE_CHUNK_SIZE = 80
+    private const val PACKAGE_CHUNK_SIZE = 60
 
     private val jsonMediaType = "application/json; charset=utf-8".toMediaType()
 
@@ -65,7 +65,6 @@ object ApkMirrorApiClient {
         val installedByPackage = apps.associateBy { it.packageName }
         val bodyJson = JSONObject()
             .put("pnames", JSONArray(apps.map { it.packageName }))
-            .put("exclude", JSONArray(listOf("alpha", "beta", "rc", "test", "other")))
 
         val request = Request.Builder()
             .url(ENDPOINT)
@@ -80,7 +79,7 @@ object ApkMirrorApiClient {
             val body = response.body.string()
 
             if (response.code !in 200..299) {
-                error("APKMirror API HTTP ${response.code}")
+                error("APKMirror API HTTP ${response.code}: ${body.cleanErrorBody()}")
             }
 
             return parseResponse(
@@ -100,7 +99,7 @@ object ApkMirrorApiClient {
         val status = root.optInt("status", -1)
 
         if (status != 200) {
-            error("APKMirror API status $status")
+            error("APKMirror API status $status: ${body.cleanErrorBody()}")
         }
 
         val data = root.optJSONArray("data") ?: return emptyMap()
@@ -118,7 +117,7 @@ object ApkMirrorApiClient {
                 installedVersionCode = installed.versionCode
             ) ?: continue
 
-            val foundVersionCode = bestApk.optString("version_code").toLongOrNull() ?: continue
+            val foundVersionCode = bestApk.optVersionCode() ?: continue
 
             if (foundVersionCode <= installed.versionCode) {
                 continue
@@ -146,7 +145,7 @@ object ApkMirrorApiClient {
 
         for (index in 0 until apks.length()) {
             val apk = apks.optJSONObject(index) ?: continue
-            val versionCode = apk.optString("version_code").toLongOrNull() ?: continue
+            val versionCode = apk.optVersionCode() ?: continue
 
             if (versionCode <= installedVersionCode) continue
             if (!isMinApiCompatible(apk.optString("minapi"))) continue
@@ -156,7 +155,17 @@ object ApkMirrorApiClient {
         }
 
         return candidates.maxByOrNull {
-            it.optString("version_code").toLongOrNull() ?: 0L
+            it.optVersionCode() ?: 0L
+        }
+    }
+
+    private fun JSONObject.optVersionCode(): Long? {
+        val raw = opt("version_code") ?: return null
+
+        return when (raw) {
+            is Number -> raw.toLong()
+            is String -> raw.toLongOrNull()
+            else -> raw.toString().toLongOrNull()
         }
     }
 
@@ -185,5 +194,11 @@ object ApkMirrorApiClient {
         }
 
         return false
+    }
+
+    private fun String.cleanErrorBody(): String {
+        return replace(Regex("\\s+"), " ")
+            .take(220)
+            .ifBlank { "empty response body" }
     }
 }
