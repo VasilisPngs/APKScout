@@ -107,7 +107,7 @@ data class UpdateInfo(
 
 data class DeviceProfile(
     val deviceName: String,
-    val sdk: Int,
+    val androidVersion: String,
     val densityDpi: Int,
     val abis: String
 )
@@ -383,7 +383,6 @@ fun APKScoutScreen(
                     profile = profile,
                     totalCount = apps.size,
                     visibleCount = visibleApps.size,
-                    updateCount = updates.size,
                     loadingApps = loadingApps,
                     checkingUpdates = checkingUpdates,
                     updateError = updateError
@@ -481,7 +480,7 @@ fun rememberDeviceProfile(context: Context): DeviceProfile {
     return remember {
         DeviceProfile(
             deviceName = resolveDeviceName(),
-            sdk = Build.VERSION.SDK_INT,
+            androidVersion = resolveAndroidVersion(),
             densityDpi = context.resources.displayMetrics.densityDpi,
             abis = Build.SUPPORTED_ABIS.joinToString()
         )
@@ -493,7 +492,6 @@ fun HeaderCard(
     profile: DeviceProfile,
     totalCount: Int,
     visibleCount: Int,
-    updateCount: Int,
     loadingApps: Boolean,
     checkingUpdates: Boolean,
     updateError: String?
@@ -516,17 +514,12 @@ fun HeaderCard(
             ) {
                 AssistChip(
                     onClick = {},
-                    label = { Text("Android ${profile.sdk}") }
+                    label = { Text("Android ${profile.androidVersion}") }
                 )
 
                 AssistChip(
                     onClick = {},
                     label = { Text("${profile.densityDpi} dpi") }
-                )
-
-                AssistChip(
-                    onClick = {},
-                    label = { Text("Upd: $updateCount") }
                 )
             }
 
@@ -858,6 +851,16 @@ fun openAPKMirror(
         )
     )
 }
+
+
+fun resolveAndroidVersion(): String {
+    val release = Build.VERSION.RELEASE.orEmpty().trim()
+
+    return release.ifBlank {
+        Build.VERSION.SDK_INT.toString()
+    }
+}
+
 
 fun resolveDeviceName(): String {
     val manufacturerRaw = Build.MANUFACTURER.orEmpty().trim()
