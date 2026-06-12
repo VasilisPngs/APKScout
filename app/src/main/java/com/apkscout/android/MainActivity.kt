@@ -268,94 +268,102 @@ fun APKScoutRoot(
         homeVisibleApps
     }
 
-    Scaffold(
-        contentWindowInsets = WindowInsets(0, 0, 0, 0),
-        topBar = {
-            APKScoutTopBar(
-                screen = currentScreen,
-                darkMode = darkMode,
-                loading = loadingApps || checkingUpdates,
-                onToggleTheme = { onDarkModeChange(!darkMode) },
-                onRefresh = { scanRequest++ }
-            )
-        },
-        bottomBar = {
-            APKScoutBottomBar(
-                currentScreen = currentScreen,
-                onHomeClick = {
-                    currentScreen = RootScreen.HOME
-                    scrollTopRequest++
-                },
-                onSearchClick = {
-                    currentScreen = RootScreen.SEARCH
-                    scrollTopRequest++
-                },
-                onSettingsClick = {
-                    currentScreen = RootScreen.SETTINGS
-                }
-            )
-        }
-    ) { innerPadding ->
-        when (currentScreen) {
-            RootScreen.HOME,
-            RootScreen.SEARCH -> {
-                APKScoutScreen(
-                    modifier = Modifier.padding(innerPadding),
-                    listState = listState,
-                    scrollTopRequest = scrollTopRequest,
-                    apps = apps,
-                    updates = updates,
-                    visibleApps = visibleApps,
-                    selectedFilter = selectedFilter,
-                    searchQuery = searchQuery,
-                    loadingApps = loadingApps,
-                    checkingUpdates = checkingUpdates,
-                    updateError = updateError,
-                    searchActive = currentScreen == RootScreen.SEARCH,
-                    onFilterChange = { selectedFilter = it },
-                    onSearchQueryChange = { searchQuery = it }
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(MaterialTheme.colorScheme.background)
+    ) {
+        Scaffold(
+            modifier = Modifier.fillMaxSize(),
+            containerColor = Color.Transparent,
+            contentWindowInsets = WindowInsets(0, 0, 0, 0),
+            topBar = {
+                APKScoutTopBar(
+                    screen = currentScreen,
+                    darkMode = darkMode,
+                    loading = loadingApps || checkingUpdates,
+                    onToggleTheme = { onDarkModeChange(!darkMode) },
+                    onRefresh = { scanRequest++ }
                 )
             }
-
-            RootScreen.SETTINGS -> {
-                Box(
-                    modifier = Modifier
-                        .padding(innerPadding)
-                        .fillMaxSize()
-                        .background(MaterialTheme.colorScheme.background)
-                        .padding(horizontal = 14.dp, vertical = 8.dp)
-                ) {
-                    SettingsScreen(
-                        settings = releaseSettings,
-                        onDevChanged = { value ->
-                            val next = releaseSettings.copy(includeDev = value)
-                            releaseSettings = next
-                            SettingsStore.write(context, next)
-                        },
-                        onAlphaChanged = { value ->
-                            val next = releaseSettings.copy(includeAlpha = value)
-                            releaseSettings = next
-                            SettingsStore.write(context, next)
-                        },
-                        onBetaChanged = { value ->
-                            val next = releaseSettings.copy(includeBeta = value)
-                            releaseSettings = next
-                            SettingsStore.write(context, next)
-                        },
-                        onRcChanged = { value ->
-                            val next = releaseSettings.copy(includeRc = value)
-                            releaseSettings = next
-                            SettingsStore.write(context, next)
-                        },
-                        onPrereleaseChanged = { value ->
-                            val next = releaseSettings.copy(includePrerelease = value)
-                            releaseSettings = next
-                            SettingsStore.write(context, next)
-                        }
+        ) { innerPadding ->
+            when (currentScreen) {
+                RootScreen.HOME,
+                RootScreen.SEARCH -> {
+                    APKScoutScreen(
+                        modifier = Modifier.padding(innerPadding),
+                        listState = listState,
+                        scrollTopRequest = scrollTopRequest,
+                        apps = apps,
+                        updates = updates,
+                        visibleApps = visibleApps,
+                        selectedFilter = selectedFilter,
+                        searchQuery = searchQuery,
+                        loadingApps = loadingApps,
+                        checkingUpdates = checkingUpdates,
+                        updateError = updateError,
+                        searchActive = currentScreen == RootScreen.SEARCH,
+                        onFilterChange = { selectedFilter = it },
+                        onSearchQueryChange = { searchQuery = it }
                     )
+                }
+
+                RootScreen.SETTINGS -> {
+                    Box(
+                        modifier = Modifier
+                            .padding(innerPadding)
+                            .fillMaxSize()
+                            .background(MaterialTheme.colorScheme.background)
+                            .padding(start = 14.dp, top = 8.dp, end = 14.dp, bottom = 96.dp)
+                    ) {
+                        SettingsScreen(
+                            settings = releaseSettings,
+                            onDevChanged = { value ->
+                                val next = releaseSettings.copy(includeDev = value)
+                                releaseSettings = next
+                                SettingsStore.write(context, next)
+                            },
+                            onAlphaChanged = { value ->
+                                val next = releaseSettings.copy(includeAlpha = value)
+                                releaseSettings = next
+                                SettingsStore.write(context, next)
+                            },
+                            onBetaChanged = { value ->
+                                val next = releaseSettings.copy(includeBeta = value)
+                                releaseSettings = next
+                                SettingsStore.write(context, next)
+                            },
+                            onRcChanged = { value ->
+                                val next = releaseSettings.copy(includeRc = value)
+                                releaseSettings = next
+                                SettingsStore.write(context, next)
+                            },
+                            onPrereleaseChanged = { value ->
+                                val next = releaseSettings.copy(includePrerelease = value)
+                                releaseSettings = next
+                                SettingsStore.write(context, next)
+                            }
+                        )
+                    }
                 }
             }
         }
+
+        APKScoutBottomBar(
+            modifier = Modifier.align(Alignment.BottomCenter),
+            currentScreen = currentScreen,
+            onHomeClick = {
+                currentScreen = RootScreen.HOME
+                scrollTopRequest++
+            },
+            onSearchClick = {
+                currentScreen = RootScreen.SEARCH
+                scrollTopRequest++
+            },
+            onSettingsClick = {
+                currentScreen = RootScreen.SETTINGS
+            }
+        )
     }
 }
 
@@ -413,16 +421,17 @@ private fun APKScoutTopBar(
 }
 
 @Composable
+private @Composable
 private fun APKScoutBottomBar(
+    modifier: Modifier = Modifier,
     currentScreen: RootScreen,
     onHomeClick: () -> Unit,
     onSearchClick: () -> Unit,
     onSettingsClick: () -> Unit
 ) {
     Box(
-        modifier = Modifier
+        modifier = modifier
             .fillMaxWidth()
-            .background(MaterialTheme.colorScheme.background)
             .navigationBarsPadding()
             .padding(start = 14.dp, end = 14.dp, bottom = 10.dp),
         contentAlignment = Alignment.Center
@@ -557,6 +566,7 @@ fun APKScoutScreen(
         modifier = modifier
             .fillMaxSize()
             .background(MaterialTheme.colorScheme.background)
+            .padding(bottom = 96.dp)
     ) {
         LazyColumn(
             state = listState,
