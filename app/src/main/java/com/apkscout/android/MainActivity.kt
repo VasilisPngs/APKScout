@@ -422,6 +422,7 @@ private fun APKScoutBottomBar(
     Box(
         modifier = Modifier
             .fillMaxWidth()
+            .background(MaterialTheme.colorScheme.background)
             .navigationBarsPadding()
             .padding(start = 14.dp, end = 14.dp, bottom = 10.dp),
         contentAlignment = Alignment.Center

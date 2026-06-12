@@ -28,7 +28,7 @@ Android 16+ Kotlin/Compose app.
 
 ## Release asset
 
-`APKScout-v0.5.3.apk`
+`APKScout-v0.5.4.apk`
 
 - Package ID changed to `com.apkscout.android`
 - Home starts on Updates and no longer shows device hardware header
@@ -91,3 +91,5 @@ Android 16+ Kotlin/Compose app.
 - Capitalizes update availability text
 
 - Makes the bottom navigation a true floating rounded capsule without a full-width background container
+
+- Prevents app cards from showing behind the floating bottom navigation capsule
