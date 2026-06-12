@@ -151,7 +151,57 @@ object ApkMirrorApiClient {
         return updates
     }
 
-    private fun findBestApk(
+    private fun JSONObject.detectPackageFormat(): String {
+    val metadata = packageFormatMetadata()
+
+    return when {
+        "apkm" in metadata -> "APKM"
+        "apks" in metadata -> "APKS"
+        "xapk" in metadata -> "XAPK"
+        "bundle" in metadata || "split" in metadata -> "BUNDLE"
+        else -> "APK"
+    }
+}
+
+private fun packageFormatScore(apk: JSONObject): Int {
+    return when (apk.detectPackageFormat()) {
+        "APK" -> 4
+        "APKM", "APKS" -> 3
+        "XAPK" -> 2
+        "BUNDLE" -> 1
+        else -> 0
+    }
+}
+
+private fun JSONObject.packageFormatMetadata(): String {
+    val keys = listOf(
+        "apk_type",
+        "file_type",
+        "type",
+        "variant_type",
+        "download_type",
+        "format",
+        "extension",
+        "file_extension",
+        "filename",
+        "file_name",
+        "name",
+        "title",
+        "link",
+        "url",
+        "download_url"
+    )
+
+    return keys
+        .mapNotNull { key ->
+            optString(key)
+                .takeIf { it.isNotBlank() }
+                ?.lowercase()
+        }
+        .joinToString(" ")
+}
+
+private fun findBestApk(
     apks: JSONArray,
     installedVersionCode: Long
 ): JSONObject? {
