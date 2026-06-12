@@ -28,7 +28,7 @@ Android 16+ Kotlin/Compose app.
 
 ## Release asset
 
-`APKScout-v0.4.2.apk`
+`APKScout-v0.4.3.apk`
 
 - Package ID changed to `com.apkscout.android`
 - Home starts on Updates and no longer shows device hardware header
@@ -39,3 +39,5 @@ Android 16+ Kotlin/Compose app.
 - Moves APK/APKM format labels next to the APKMirror action
 
 - Filters APKMirror updates by Android device target such as phone, Wear OS, TV, Auto, Automotive and VR
+
+- Filters APKMirror app and release links/titles to avoid Wear OS, TV, Auto and VR mismatches on phones

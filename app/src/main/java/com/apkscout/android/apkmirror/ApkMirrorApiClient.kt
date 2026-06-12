@@ -129,8 +129,11 @@ object ApkMirrorApiClient {
             val installed = installedByPackage[packageName] ?: continue
 
             if (!item.optBoolean("exists", true)) continue
+            if (!isDeviceTargetCompatible(item, packageManager)) continue
 
             val release = item.optJSONObject("release") ?: continue
+            if (!isDeviceTargetCompatible(release, packageManager)) continue
+
             val apks = item.optJSONArray("apks") ?: continue
 
             val bestApk = findBestApk(
@@ -325,6 +328,20 @@ object ApkMirrorApiClient {
         val values = mutableListOf<String>()
 
         val explicitKeys = listOf(
+            "name",
+            "title",
+            "label",
+            "slug",
+            "link",
+            "url",
+            "html_url",
+            "download_url",
+            "release",
+            "releases",
+            "app",
+            "apps",
+            "app_name",
+            "app_title",
             "platform",
             "platforms",
             "device",
@@ -336,6 +353,10 @@ object ApkMirrorApiClient {
             "targeting",
             "android_variant",
             "android_variants",
+            "release_name",
+            "release_title",
+            "release_link",
+            "release_url",
             "form_factor",
             "form_factors",
             "supported_devices",
@@ -361,6 +382,13 @@ object ApkMirrorApiClient {
             val normalizedKey = key.lowercase()
 
             if (
+                "name" in normalizedKey ||
+                "title" in normalizedKey ||
+                "slug" in normalizedKey ||
+                "link" in normalizedKey ||
+                "url" in normalizedKey ||
+                "release" in normalizedKey ||
+                "app" in normalizedKey ||
                 "target" in normalizedKey ||
                 "platform" in normalizedKey ||
                 "device" in normalizedKey ||
@@ -438,7 +466,9 @@ object ApkMirrorApiClient {
 
         if (
             "wear os" in normalized ||
+            "wearos" in normalized ||
             "android wear" in normalized ||
+            "androidwear" in normalized ||
             "wearable" in normalized ||
             Regex("\\bwatch\\b").containsMatchIn(normalized)
         ) {
@@ -447,7 +477,9 @@ object ApkMirrorApiClient {
 
         if (
             "android tv" in normalized ||
+            "androidtv" in normalized ||
             "google tv" in normalized ||
+            "googletv" in normalized ||
             "leanback" in normalized ||
             Regex("\\btv\\b").containsMatchIn(normalized)
         ) {
@@ -456,12 +488,13 @@ object ApkMirrorApiClient {
 
         if (
             "android automotive" in normalized ||
+            "androidautomotive" in normalized ||
             "automotive" in normalized
         ) {
             result += "automotive"
         }
 
-        if ("android auto" in normalized) {
+        if ("android auto" in normalized || "androidauto" in normalized) {
             result += "auto"
         }
 
