@@ -28,7 +28,7 @@ Android 16+ Kotlin/Compose app.
 
 ## Release asset
 
-`APKScout-v0.5.5.apk`
+`APKScout-v0.5.6.apk`
 
 - Package ID changed to `com.apkscout.android`
 - Home starts on Updates and no longer shows device hardware header
@@ -95,3 +95,5 @@ Android 16+ Kotlin/Compose app.
 - Prevents app cards from showing behind the floating bottom navigation capsule
 
 - Converts the bottom navigation from a Scaffold bottomBar slot into a true overlay floating capsule
+
+- Matches the floating bottom navigation capsule color with the app banner/card color
