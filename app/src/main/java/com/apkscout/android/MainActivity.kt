@@ -141,31 +141,34 @@ fun APKScoutTheme(
     darkMode: Boolean,
     content: @Composable () -> Unit
 ) {
+    val darkWhite = Color(0xFFF5F5F5)
+    val lightWhite = Color(0xFFFFFFFF)
+
     val colors = if (darkMode) {
         darkColorScheme(
-            background = Color(0xFF101114),
-            surface = Color(0xFF1A1C20),
-            surfaceVariant = Color(0xFF25282E),
-            primary = Color(0xFFE7EAF2),
-            onPrimary = Color(0xFF111318),
-            onBackground = Color(0xFFF2F4FA),
-            onSurface = Color(0xFFF2F4FA),
-            onSurfaceVariant = Color(0xFFC9CDD6),
-            outline = Color(0xFF8B909A),
-            outlineVariant = Color(0xFF3F444D)
+            background = Color(0xFF151515),
+            surface = Color(0xFF2B2B2B),
+            surfaceVariant = Color(0xFF3A3A3A),
+            primary = darkWhite,
+            onPrimary = Color(0xFF111111),
+            onBackground = darkWhite,
+            onSurface = darkWhite,
+            onSurfaceVariant = Color(0xFFD8D8D8),
+            outline = Color(0xFF8A8A8A),
+            outlineVariant = Color(0xFF686868)
         )
     } else {
         lightColorScheme(
-            background = Color(0xFFF5F6FA),
-            surface = Color(0xFFFFFFFF),
-            surfaceVariant = Color(0xFFF0F2F7),
-            primary = Color(0xFF15171C),
-            onPrimary = Color(0xFFFFFFFF),
-            onBackground = Color(0xFF16181D),
-            onSurface = Color(0xFF16181D),
-            onSurfaceVariant = Color(0xFF4D535D),
-            outline = Color(0xFF777D87),
-            outlineVariant = Color(0xFFD8DCE4)
+            background = Color(0xFFF4F4F4),
+            surface = lightWhite,
+            surfaceVariant = Color(0xFFECECEC),
+            primary = lightWhite,
+            onPrimary = Color(0xFF171717),
+            onBackground = Color(0xFF171717),
+            onSurface = Color(0xFF171717),
+            onSurfaceVariant = Color(0xFF4E4E4E),
+            outline = Color(0xFF8A8A8A),
+            outlineVariant = Color(0xFFD2D2D2)
         )
     }
 
@@ -419,15 +422,15 @@ private fun APKScoutBottomBar(
     Box(
         modifier = Modifier
             .fillMaxWidth()
-            .background(MaterialTheme.colorScheme.background)
             .navigationBarsPadding()
-            .padding(start = 14.dp, end = 14.dp, bottom = 8.dp)
+            .padding(start = 14.dp, end = 14.dp, bottom = 10.dp),
+        contentAlignment = Alignment.Center
     ) {
         Surface(
             modifier = Modifier
                 .fillMaxWidth()
                 .height(62.dp),
-            shape = RoundedCornerShape(28.dp),
+            shape = RoundedCornerShape(31.dp),
             color = MaterialTheme.colorScheme.surfaceVariant,
             tonalElevation = 0.dp,
             shadowElevation = 0.dp
@@ -446,7 +449,7 @@ private fun APKScoutBottomBar(
                         Icon(
                             imageVector = Icons.Rounded.Home,
                             contentDescription = "Home",
-                            modifier = Modifier.size(23.dp)
+                            modifier = Modifier.size(25.dp)
                         )
                     }
                 )
@@ -458,7 +461,7 @@ private fun APKScoutBottomBar(
                         Icon(
                             imageVector = Icons.Rounded.Search,
                             contentDescription = "Search",
-                            modifier = Modifier.size(23.dp)
+                            modifier = Modifier.size(25.dp)
                         )
                     }
                 )
@@ -470,7 +473,7 @@ private fun APKScoutBottomBar(
                         Icon(
                             imageVector = Icons.Rounded.Settings,
                             contentDescription = "Settings",
-                            modifier = Modifier.size(23.dp)
+                            modifier = Modifier.size(25.dp)
                         )
                     }
                 )
@@ -489,29 +492,37 @@ private fun BottomBarItem(
 
     Box(
         modifier = Modifier
-            .width(86.dp)
-            .height(46.dp)
+            .width(96.dp)
+            .height(50.dp)
             .clip(shape)
-            .background(
-                color = if (selected) {
-                    MaterialTheme.colorScheme.primary
-                } else {
-                    Color.Transparent
-                },
-                shape = shape
-            )
             .clickable(onClick = onClick),
         contentAlignment = Alignment.Center
     ) {
-        Surface(
-            color = Color.Transparent,
-            contentColor = if (selected) {
-                MaterialTheme.colorScheme.onPrimary
-            } else {
-                MaterialTheme.colorScheme.onSurfaceVariant
+        if (selected) {
+            Surface(
+                modifier = Modifier
+                    .width(90.dp)
+                    .height(44.dp),
+                shape = shape,
+                color = MaterialTheme.colorScheme.primary,
+                contentColor = MaterialTheme.colorScheme.onPrimary,
+                tonalElevation = 0.dp,
+                shadowElevation = 0.dp
+            ) {
+                Box(
+                    modifier = Modifier.fillMaxSize(),
+                    contentAlignment = Alignment.Center
+                ) {
+                    icon()
+                }
             }
-        ) {
-            icon()
+        } else {
+            Surface(
+                color = Color.Transparent,
+                contentColor = MaterialTheme.colorScheme.onSurface
+            ) {
+                icon()
+            }
         }
     }
 }
@@ -621,6 +632,8 @@ private fun SearchField(
 @Composable
 fun ControlsCard(
     selectedFilter: AppListFilter,
+    visibleCount: Int = 0,
+    totalCount: Int = 0,
     updatesCount: Int,
     loadingApps: Boolean,
     checkingUpdates: Boolean,
@@ -629,11 +642,11 @@ fun ControlsCard(
 ) {
     UniformCard {
         Column(
-            verticalArrangement = Arrangement.spacedBy(14.dp)
+            verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
             ) {
                 FilterTab(
                     label = "Updates",
@@ -669,11 +682,11 @@ fun ControlsCard(
                     loadingApps -> "Loading apps..."
                     checkingUpdates -> "Checking updates..."
                     updateError != null -> "Update check failed"
-                    updatesCount == 1 -> "1 update available"
-                    else -> "$updatesCount updates available"
+                    updatesCount == 1 -> "1 Update available"
+                    else -> "$updatesCount Updates available"
                 },
-                style = MaterialTheme.typography.titleLarge,
-                fontWeight = FontWeight.Bold,
+                style = MaterialTheme.typography.bodyLarge,
+                fontWeight = FontWeight.SemiBold,
                 color = if (updateError == null) {
                     MaterialTheme.colorScheme.onSurface
                 } else {
@@ -915,14 +928,21 @@ private fun VersionBlock(
 
 @Composable
 private fun PackageFormatLabel(
-    formatLabel: String,
+    formatLabel: String?,
     modifier: Modifier = Modifier
 ) {
+    val label = formatLabel
+        ?.trim()
+        ?.takeIf { it.isNotEmpty() }
+        ?: "APK"
+
     Surface(
         modifier = modifier.heightIn(min = 40.dp),
         shape = RoundedCornerShape(999.dp),
         color = MaterialTheme.colorScheme.primary,
-        contentColor = MaterialTheme.colorScheme.onPrimary
+        contentColor = MaterialTheme.colorScheme.onPrimary,
+        tonalElevation = 0.dp,
+        shadowElevation = 0.dp
     ) {
         Box(
             modifier = Modifier
@@ -931,9 +951,9 @@ private fun PackageFormatLabel(
             contentAlignment = Alignment.Center
         ) {
             Text(
-                text = formatLabel,
+                text = label,
                 style = MaterialTheme.typography.labelLarge,
-                fontWeight = FontWeight.Bold,
+                fontWeight = FontWeight.SemiBold,
                 textAlign = TextAlign.Center,
                 maxLines = 1
             )

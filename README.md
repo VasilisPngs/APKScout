@@ -28,7 +28,7 @@ Android 16+ Kotlin/Compose app.
 
 ## Release asset
 
-`APKScout-v0.5.1.apk`
+`APKScout-v0.5.2.apk`
 
 - Package ID changed to `com.apkscout.android`
 - Home starts on Updates and no longer shows device hardware header
@@ -81,3 +81,11 @@ Android 16+ Kotlin/Compose app.
 - Fixes Material 3 navigation import for release builds
 
 - Uses a custom rounded bottom bar item implementation without NavigationBarItem dependency
+
+- Removes the full-width dark background behind the rounded bottom navigation bar
+
+- Slightly increases bottom navigation icon size
+
+- Standardizes white surfaces and selected controls across light and dark themes
+
+- Capitalizes update availability text
