@@ -845,7 +845,7 @@ fun InstalledAppCard(
                     horizontalArrangement = Arrangement.End
                 ) {
                     PackageFormatLabel(
-                        formatLabel = update.formatLabel,
+                        formatLabel = update?.formatLabel,
                         modifier = Modifier.padding(end = 8.dp)
                     )
 
