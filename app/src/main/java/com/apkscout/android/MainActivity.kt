@@ -422,6 +422,7 @@ private fun APKScoutTopBar(
 
 @Composable
 private @Composable
+@Composable
 private fun APKScoutBottomBar(
     modifier: Modifier = Modifier,
     currentScreen: RootScreen,
