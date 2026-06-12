@@ -419,9 +419,7 @@ private fun APKScoutTopBar(
         }
     }
 }
-
 @Composable
-private @Composable
 private fun APKScoutBottomBar(
     modifier: Modifier = Modifier,
     currentScreen: RootScreen,
@@ -491,7 +489,6 @@ private fun APKScoutBottomBar(
         }
     }
 }
-
 @Composable
 private fun BottomBarItem(
     selected: Boolean,
