@@ -13,11 +13,11 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -28,14 +28,16 @@ import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.DarkMode
@@ -74,6 +76,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -83,15 +86,9 @@ import com.apkscout.android.settings.ReleaseChannelFilter
 import com.apkscout.android.settings.ReleaseChannelSettings
 import com.apkscout.android.settings.SettingsStore
 import com.apkscout.android.ui.SettingsScreen
+import java.util.Locale
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
-import java.util.Locale
-import androidx.compose.foundation.BorderStroke
-import androidx.compose.foundation.layout.heightIn
-import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.foundation.lazy.rememberLazyListState
-import androidx.compose.runtime.rememberCoroutineScope
-import kotlinx.coroutines.launch
 
 data class InstalledApp(
     val label: String,
@@ -107,12 +104,6 @@ data class UpdateInfo(
     val versionCode: Long,
     val url: String,
     val formatLabel: String? = null
-)
-
-data class DeviceProfile(
-    val deviceName: String,
-    val androidVersion: String,
-    val densityDpi: Int
 )
 
 enum class AppListFilter {
@@ -156,14 +147,9 @@ private fun buildUpdateLine(installedVersionName: String, update: UpdateInfo): S
 
 @Composable
 private fun PackageFormatLabel(
-    formatLabel: String?,
+    formatLabel: String,
     modifier: Modifier = Modifier
 ) {
-    val label = formatLabel
-        ?.trim()
-        ?.takeIf { it.isNotEmpty() }
-        ?: "APK"
-
     Surface(
         modifier = modifier.heightIn(min = 40.dp),
         shape = RoundedCornerShape(999.dp),
@@ -181,7 +167,7 @@ private fun PackageFormatLabel(
             contentAlignment = Alignment.Center
         ) {
             Text(
-                text = label,
+                text = formatLabel,
                 style = MaterialTheme.typography.labelLarge,
                 fontWeight = FontWeight.SemiBold,
                 textAlign = TextAlign.Center,
@@ -190,7 +176,6 @@ private fun PackageFormatLabel(
         }
     }
 }
-
 
 @Composable
 fun APKScoutTheme(
@@ -237,19 +222,105 @@ fun APKScoutRoot(
     onDarkModeChange: (Boolean) -> Unit
 ) {
     val context = LocalContext.current
+    val homeListState = rememberLazyListState()
 
     var currentScreen by remember { mutableStateOf(RootScreen.HOME) }
     var releaseSettings by remember { mutableStateOf(SettingsStore.read(context)) }
+    var selectedFilter by remember { mutableStateOf(AppListFilter.UPDATES) }
+    var searchQuery by remember { mutableStateOf("") }
+    var scanRequest by remember { mutableIntStateOf(0) }
+    var updateRequest by remember { mutableIntStateOf(0) }
+    var homeScrollRequest by remember { mutableIntStateOf(0) }
+    var apps by remember { mutableStateOf<List<InstalledApp>>(emptyList()) }
+    var rawUpdates by remember { mutableStateOf<Map<String, UpdateInfo>>(emptyMap()) }
+    var updateError by remember { mutableStateOf<String?>(null) }
+    var loadingApps by remember { mutableStateOf(true) }
+    var checkingUpdates by remember { mutableStateOf(false) }
 
-        val homeListState = rememberLazyListState()
-    val homeScrollScope = rememberCoroutineScope()
+    LaunchedEffect(currentScreen) {
+        if (currentScreen != RootScreen.SEARCH) {
+            searchQuery = ""
+        }
+    }
 
-Scaffold(
+    LaunchedEffect(scanRequest) {
+        loadingApps = true
+        checkingUpdates = false
+        updateError = null
+        rawUpdates = emptyMap()
+
+        apps = withContext(Dispatchers.Default) {
+            scanInstalledApps(packageManager = context.packageManager)
+        }
+
+        loadingApps = false
+        updateRequest++
+    }
+
+    LaunchedEffect(updateRequest) {
+        if (updateRequest <= 0 || apps.isEmpty()) return@LaunchedEffect
+
+        checkingUpdates = true
+        updateError = null
+
+        val result = ApkMirrorApiClient.checkUpdates(
+            apps = apps,
+            packageManager = context.packageManager
+        )
+
+        rawUpdates = result.updates
+        updateError = result.error
+        checkingUpdates = false
+    }
+
+    val updates = remember(rawUpdates, releaseSettings) {
+        rawUpdates.filterValues { update ->
+            ReleaseChannelFilter.isAllowed(
+                versionName = update.versionName,
+                settings = releaseSettings
+            )
+        }
+    }
+
+    val homeVisibleApps = remember(apps, updates, selectedFilter) {
+        filterApps(
+            apps = apps,
+            updates = updates,
+            filter = selectedFilter,
+            query = ""
+        )
+    }
+
+    val searchVisibleApps = remember(apps, updates, searchQuery) {
+        filterApps(
+            apps = apps,
+            updates = updates,
+            filter = AppListFilter.ALL,
+            query = searchQuery
+        )
+    }
+
+    val activeVisibleApps = if (currentScreen == RootScreen.SEARCH) {
+        searchVisibleApps
+    } else {
+        homeVisibleApps
+    }
+
+    Scaffold(
         contentWindowInsets = WindowInsets(0, 0, 0, 0),
         bottomBar = {
             APKScoutBottomBar(
                 currentScreen = currentScreen,
-                onScreenChange = { currentScreen = it }
+                onHomeClick = {
+                    currentScreen = RootScreen.HOME
+                    homeScrollRequest++
+                },
+                onSearchClick = {
+                    currentScreen = RootScreen.SEARCH
+                },
+                onSettingsClick = {
+                    currentScreen = RootScreen.SETTINGS
+                }
             )
         }
     ) { innerPadding ->
@@ -258,10 +329,23 @@ Scaffold(
             RootScreen.SEARCH -> {
                 APKScoutScreen(
                     modifier = Modifier.padding(innerPadding),
-                    releaseSettings = releaseSettings,
+                    listState = homeListState,
+                    homeScrollRequest = homeScrollRequest,
+                    apps = apps,
+                    updates = updates,
+                    homeVisibleApps = homeVisibleApps,
+                    activeVisibleApps = activeVisibleApps,
+                    selectedFilter = selectedFilter,
+                    searchQuery = searchQuery,
+                    loadingApps = loadingApps,
+                    checkingUpdates = checkingUpdates,
+                    updateError = updateError,
                     darkMode = darkMode,
                     searchActive = currentScreen == RootScreen.SEARCH,
-                    onDarkModeChange = onDarkModeChange
+                    onFilterChange = { selectedFilter = it },
+                    onSearchQueryChange = { searchQuery = it },
+                    onDarkModeChange = onDarkModeChange,
+                    onRefresh = { scanRequest++ }
                 )
             }
 
@@ -302,7 +386,9 @@ Scaffold(
 @Composable
 private fun APKScoutBottomBar(
     currentScreen: RootScreen,
-    onScreenChange: (RootScreen) -> Unit
+    onHomeClick: () -> Unit,
+    onSearchClick: () -> Unit,
+    onSettingsClick: () -> Unit
 ) {
     Column(
         modifier = Modifier
@@ -320,10 +406,7 @@ private fun APKScoutBottomBar(
         ) {
             NavigationBarItem(
                 selected = currentScreen == RootScreen.HOME,
-                onClick = {
-                onScreenChange(RootScreen.HOME)
-                homeScrollScope.launch { homeListState.animateScrollToItem(0) }
-            },
+                onClick = onHomeClick,
                 icon = {
                     Icon(
                         imageVector = Icons.Rounded.Home,
@@ -342,7 +425,7 @@ private fun APKScoutBottomBar(
 
             NavigationBarItem(
                 selected = currentScreen == RootScreen.SEARCH,
-                onClick = { onScreenChange(RootScreen.SEARCH) },
+                onClick = onSearchClick,
                 icon = {
                     Icon(
                         imageVector = Icons.Rounded.Search,
@@ -361,7 +444,7 @@ private fun APKScoutBottomBar(
 
             NavigationBarItem(
                 selected = currentScreen == RootScreen.SETTINGS,
-                onClick = { onScreenChange(RootScreen.SETTINGS) },
+                onClick = onSettingsClick,
                 icon = {
                     Icon(
                         imageVector = Icons.Rounded.Settings,
@@ -384,87 +467,30 @@ private fun APKScoutBottomBar(
 @Composable
 fun APKScoutScreen(
     modifier: Modifier,
-    releaseSettings: ReleaseChannelSettings,
+    listState: LazyListState,
+    homeScrollRequest: Int,
+    apps: List<InstalledApp>,
+    updates: Map<String, UpdateInfo>,
+    homeVisibleApps: List<InstalledApp>,
+    activeVisibleApps: List<InstalledApp>,
+    selectedFilter: AppListFilter,
+    searchQuery: String,
+    loadingApps: Boolean,
+    checkingUpdates: Boolean,
+    updateError: String?,
     darkMode: Boolean,
     searchActive: Boolean,
-    onDarkModeChange: (Boolean) -> Unit
+    onFilterChange: (AppListFilter) -> Unit,
+    onSearchQueryChange: (String) -> Unit,
+    onDarkModeChange: (Boolean) -> Unit,
+    onRefresh: () -> Unit
 ) {
     val context = LocalContext.current
 
-    var selectedFilter by remember { mutableStateOf(AppListFilter.UPDATES) }
-    var searchQuery by remember { mutableStateOf("") }
-    var scanRequest by remember { mutableIntStateOf(0) }
-    var updateRequest by remember { mutableIntStateOf(0) }
-    var apps by remember { mutableStateOf<List<InstalledApp>>(emptyList()) }
-    var rawUpdates by remember { mutableStateOf<Map<String, UpdateInfo>>(emptyMap()) }
-    var updateError by remember { mutableStateOf<String?>(null) }
-    var loadingApps by remember { mutableStateOf(true) }
-    var checkingUpdates by remember { mutableStateOf(false) }
-
-    LaunchedEffect(searchActive) {
-        if (!searchActive) {
-            searchQuery = ""
+    LaunchedEffect(homeScrollRequest) {
+        if (homeScrollRequest > 0) {
+            listState.animateScrollToItem(0)
         }
-    }
-
-    LaunchedEffect(scanRequest) {
-        loadingApps = true
-        apps = withContext(Dispatchers.Default) {
-            scanInstalledApps(packageManager = context.packageManager)
-        }
-        loadingApps = false
-    }
-
-    LaunchedEffect(apps) {
-        if (apps.isNotEmpty()) {
-            updateRequest++
-        }
-    }
-
-    LaunchedEffect(updateRequest) {
-        if (updateRequest <= 0 || apps.isEmpty()) return@LaunchedEffect
-
-        checkingUpdates = true
-        updateError = null
-
-        val result = ApkMirrorApiClient.checkUpdates(apps, packageManager = context.packageManager)
-
-        rawUpdates = result.updates
-        updateError = result.error
-        checkingUpdates = false
-    }
-
-    val updates = remember(rawUpdates, releaseSettings) {
-        rawUpdates.filterValues { update ->
-            ReleaseChannelFilter.isAllowed(
-                versionName = update.versionName,
-                settings = releaseSettings
-            )
-        }
-    }
-
-    val homeVisibleApps = remember(apps, updates, selectedFilter) {
-        filterApps(
-            apps = apps,
-            updates = updates,
-            filter = selectedFilter,
-            query = ""
-        )
-    }
-
-    val searchActiveApps = remember(apps, updates, searchQuery) {
-        filterApps(
-            apps = apps,
-            updates = updates,
-            filter = AppListFilter.ALL,
-            query = searchQuery
-        )
-    }
-
-    val activeVisibleApps = if (searchActive) {
-        searchActiveApps
-    } else {
-        homeVisibleApps
     }
 
     Box(
@@ -473,7 +499,7 @@ fun APKScoutScreen(
             .background(MaterialTheme.colorScheme.background)
     ) {
         LazyColumn(
-            state = homeListState,
+            state = listState,
             modifier = Modifier
                 .fillMaxSize()
                 .statusBarsPadding(),
@@ -490,10 +516,7 @@ fun APKScoutScreen(
                     loading = loadingApps || checkingUpdates,
                     darkMode = darkMode,
                     onToggleTheme = { onDarkModeChange(!darkMode) },
-                    onRefresh = {
-                        scanRequest++
-                        updateRequest++
-                    }
+                    onRefresh = onRefresh
                 )
             }
 
@@ -501,7 +524,7 @@ fun APKScoutScreen(
                 item {
                     SearchBarCard(
                         query = searchQuery,
-                        onQueryChange = { searchQuery = it }
+                        onQueryChange = onSearchQueryChange
                     )
                 }
             } else {
@@ -513,10 +536,11 @@ fun APKScoutScreen(
                         loadingApps = loadingApps,
                         checkingUpdates = checkingUpdates,
                         updateError = updateError,
-                        onFilterChange = { selectedFilter = it }
+                        onFilterChange = onFilterChange
                     )
                 }
             }
+
             items(
                 items = activeVisibleApps,
                 key = { it.packageName }
@@ -594,72 +618,6 @@ fun SearchBarCard(
                 )
             }
         )
-    }
-}
-
-@Composable
-fun rememberDeviceProfile(context: Context): DeviceProfile {
-    return remember {
-        DeviceProfile(
-            deviceName = resolveDeviceName(),
-            androidVersion = resolveAndroidVersion(),
-            densityDpi = context.resources.displayMetrics.densityDpi
-        )
-    }
-}
-
-@Composable
-fun HeaderCard(
-    profile: DeviceProfile,
-    totalCount: Int,
-    visibleCount: Int,
-    loadingApps: Boolean,
-    checkingUpdates: Boolean,
-    updateError: String?
-) {
-    UniformCard {
-        Column(
-            verticalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
-            Text(
-                text = profile.deviceName,
-                style = MaterialTheme.typography.titleLarge,
-                fontWeight = FontWeight.Bold,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
-            )
-
-            Row(
-                modifier = Modifier.horizontalScroll(rememberScrollState()),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                AssistChip(
-                    onClick = {},
-                    label = { Text("Android ${profile.androidVersion}") }
-                )
-
-                AssistChip(
-                    onClick = {},
-                    label = { Text("${profile.densityDpi} dpi") }
-                )
-            }
-
-            Text(
-                text = when {
-                    loadingApps -> "Scanning installed apps..."
-                    checkingUpdates -> "Checking APKMirror updates..."
-                    updateError != null -> "APKMirror check failed: $updateError"
-                    visibleCount == totalCount -> "$totalCount apps found"
-                    else -> "$visibleCount of $totalCount apps visible"
-                },
-                style = MaterialTheme.typography.labelLarge,
-                color = if (updateError == null) {
-                    MaterialTheme.colorScheme.primary
-                } else {
-                    MaterialTheme.colorScheme.error
-                }
-            )
-        }
     }
 }
 
@@ -868,12 +826,18 @@ fun InstalledAppCard(
 
                 Row(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.End
+                    horizontalArrangement = Arrangement.End,
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    PackageFormatLabel(
-                        formatLabel = update?.formatLabel,
-                        modifier = Modifier.padding(end = 8.dp)
-                    )
+                    update?.formatLabel
+                        ?.trim()
+                        ?.takeIf { it.isNotEmpty() }
+                        ?.let { formatLabel ->
+                            PackageFormatLabel(
+                                formatLabel = formatLabel,
+                                modifier = Modifier.padding(end = 8.dp)
+                            )
+                        }
 
                     Button(
                         onClick = onOpenAPKMirror,
