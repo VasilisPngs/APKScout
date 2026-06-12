@@ -28,7 +28,7 @@ Android 16+ Kotlin/Compose app.
 
 ## Release asset
 
-`APKScout-v0.5.7.apk`
+`APKScout-v0.5.8.apk`
 
 - Package ID changed to `com.apkscout.android`
 - Home starts on Updates and no longer shows device hardware header
@@ -99,3 +99,7 @@ Android 16+ Kotlin/Compose app.
 - Matches the floating bottom navigation capsule color with the app banner/card color
 
 - Floating bottom bar capsule color now matches the app card background color
+
+- Detects APKMirror BUNDLE releases and labels them as APKM instead of APK
+
+- Restores APK/APKM-only format detection for APKMirror rows

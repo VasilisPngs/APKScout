@@ -98,8 +98,8 @@ data class UpdateInfo(
     val versionName: String,
     val versionCode: Long,
     val url: String,
-    val formatLabel: String? = null
-)
+    val formatLabel: String? = null,
+    val packageFormat: String = "APK")
 
 enum class AppListFilter {
     ALL,
@@ -135,6 +135,43 @@ class MainActivity : ComponentActivity() {
         }
     }
 }
+
+private fun normalizeApkMirrorPackageFormat(value: Any?): String {
+    val source = value
+        ?.toString()
+        .orEmpty()
+        .trim()
+        .lowercase()
+
+    return when {
+        source.contains("apkm") -> "APKM"
+        source.contains("apk bundle") -> "APKM"
+        source.contains("bundle") -> "APKM"
+        source.contains("split apk") -> "APKM"
+        source.contains("split-apk") -> "APKM"
+        source.contains("splits") -> "APKM"
+        else -> "APK"
+    }
+}
+
+private fun detectApkMirrorPackageFormat(source: Any?): String {
+    val html = source
+        ?.toString()
+        .orEmpty()
+        .replace("&nbsp;", " ")
+        .replace("&#160;", " ")
+        .replace("\\s+".toRegex(), " ")
+        .lowercase()
+
+    val bundleBadge = Regex(""">\s*bundle\s*<|\bbundle\b|\bapk bundle\b|\bapkm\b|\bsplit apk\b|\bsplits\b""")
+
+    return if (bundleBadge.containsMatchIn(html)) {
+        "APKM"
+    } else {
+        "APK"
+    }
+}
+
 
 @Composable
 fun APKScoutTheme(
@@ -762,6 +799,8 @@ fun InstalledAppCard(
     update: UpdateInfo?,
     onOpenAPKMirror: () -> Unit
 ) {
+    val packageFormatLabel = update?.packageFormat ?: "APK"
+
     ElevatedCard(
         modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.elevatedCardColors(
@@ -831,10 +870,7 @@ fun InstalledAppCard(
                         ?.trim()
                         ?.takeIf { it.isNotEmpty() }
                         ?.let { formatLabel ->
-                            PackageFormatLabel(
-                                formatLabel = formatLabel,
-                                modifier = Modifier.padding(end = 8.dp)
-                            )
+                            PackageFormatLabel(format = packageFormatLabel)
                         }
 
                     Button(
@@ -933,41 +969,28 @@ private fun VersionBlock(
         )
     }
 }
-
 @Composable
-private fun PackageFormatLabel(
-    formatLabel: String?,
-    modifier: Modifier = Modifier
-) {
-    val label = formatLabel
-        ?.trim()
-        ?.takeIf { it.isNotEmpty() }
-        ?: "APK"
+private fun PackageFormatLabel(format: String?) {
+    val label = when (format?.uppercase()) {
+        "APKM" -> "APKM"
+        else -> "APK"
+    }
 
     Surface(
-        modifier = modifier.heightIn(min = 40.dp),
         shape = RoundedCornerShape(999.dp),
         color = MaterialTheme.colorScheme.primary,
         contentColor = MaterialTheme.colorScheme.onPrimary,
         tonalElevation = 0.dp,
         shadowElevation = 0.dp
     ) {
-        Box(
-            modifier = Modifier
-                .heightIn(min = 40.dp)
-                .padding(horizontal = 18.dp),
-            contentAlignment = Alignment.Center
-        ) {
-            Text(
-                text = label,
-                style = MaterialTheme.typography.labelLarge,
-                fontWeight = FontWeight.SemiBold,
-                textAlign = TextAlign.Center,
-                maxLines = 1
-            )
-        }
+        Text(
+            text = label,
+            modifier = Modifier.padding(horizontal = 18.dp, vertical = 8.dp),
+            style = MaterialTheme.typography.titleMedium
+        )
     }
 }
+
 
 @Composable
 fun UniformCard(content: @Composable () -> Unit) {

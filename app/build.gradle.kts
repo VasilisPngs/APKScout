@@ -11,8 +11,8 @@ android {
         applicationId = "com.apkscout.android"
         minSdk = 36
         targetSdk = 36
-        versionCode = 35
-        versionName = "0.5.7"
+        versionCode = 36
+        versionName = "0.5.8"
     }
 
     signingConfigs {

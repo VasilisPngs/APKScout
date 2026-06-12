@@ -164,8 +164,12 @@ object ApkMirrorApiClient {
                 versionName = foundVersionName,
                 versionCode = foundVersionCode,
                 url = releaseUrl,
-                formatLabel = selection.formatLabel
-            )
+                formatLabel = selection.formatLabel,
+    packageFormat = resolveApkMirrorPackageFormat(
+        html = body,
+        versionCode = foundVersionCode,
+        url = releaseUrl
+    ))
         }
 
         return updates
@@ -1044,3 +1048,52 @@ object ApkMirrorApiClient {
             .ifBlank { "empty response body" }
     }
 }
+private fun resolveApkMirrorPackageFormat(
+    html: String,
+    versionCode: Long,
+    url: String
+): String {
+    val urlUpper = url.uppercase()
+
+    if (urlUpper.contains(".APKM") || urlUpper.contains("/APKM/")) {
+        return "APKM"
+    }
+
+    val normalized = html
+        .replace("&nbsp;", " ")
+        .replace("&#8211;", "-")
+        .replace("&#8212;", "-")
+        .replace("&amp;", "&")
+        .replace(Regex("<[^>]+>"), " ")
+        .replace(Regex("\\s+"), " ")
+        .trim()
+
+    if (normalized.isBlank()) {
+        return "APK"
+    }
+
+    val code = versionCode.toString()
+    val index = normalized.indexOf(code)
+
+    val window = if (index >= 0) {
+        normalized.substring(
+            startIndex = maxOf(0, index - 900),
+            endIndex = minOf(normalized.length, index + 1400)
+        )
+    } else {
+        normalized.take(5000)
+    }
+
+    val upper = window.uppercase()
+
+    return if (
+        upper.contains("BUNDLE") ||
+        upper.contains("APKM") ||
+        upper.contains("APK BUNDLE")
+    ) {
+        "APKM"
+    } else {
+        "APK"
+    }
+}
+
