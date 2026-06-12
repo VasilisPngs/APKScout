@@ -132,6 +132,7 @@ object ApkMirrorApiClient {
             if (!isDeviceTargetCompatible(item, packageManager)) continue
 
             val release = item.optJSONObject("release") ?: continue
+
             if (!isDeviceTargetCompatible(release, packageManager)) continue
 
             val apks = item.optJSONArray("apks") ?: continue
@@ -256,14 +257,14 @@ object ApkMirrorApiClient {
         val isVr: Boolean
     ) {
         val isPhoneLike: Boolean
-            get() = !isWatch && !isTelevision && !isAutomotive
+            get() = !isWatch && !isTelevision && !isAutomotive && !isVr
     }
 
     private fun isDeviceTargetCompatible(
-        apk: JSONObject,
+        source: JSONObject,
         packageManager: PackageManager?
     ): Boolean {
-        val targets = apk.deviceTargetTokens()
+        val targets = source.deviceTargetTokens()
 
         if (targets.isEmpty()) return true
 
@@ -338,6 +339,10 @@ object ApkMirrorApiClient {
             "download_url",
             "release",
             "releases",
+            "release_name",
+            "release_title",
+            "release_link",
+            "release_url",
             "app",
             "apps",
             "app_name",
@@ -353,10 +358,6 @@ object ApkMirrorApiClient {
             "targeting",
             "android_variant",
             "android_variants",
-            "release_name",
-            "release_title",
-            "release_link",
-            "release_url",
             "form_factor",
             "form_factors",
             "supported_devices",
@@ -371,6 +372,7 @@ object ApkMirrorApiClient {
             val value = opt(key)
 
             if (value != null && value != JSONObject.NULL) {
+                values += key
                 values += value.collectDeviceTargetText()
             }
         }
@@ -397,7 +399,6 @@ object ApkMirrorApiClient {
                 "features" in normalizedKey ||
                 "requirements" in normalizedKey ||
                 "wear" in normalizedKey ||
-                "watch" in normalizedKey ||
                 "leanback" in normalizedKey ||
                 "tv" in normalizedKey ||
                 "automotive" in normalizedKey ||
@@ -415,9 +416,7 @@ object ApkMirrorApiClient {
             }
         }
 
-        return values
-            .joinToString(" ")
-            .lowercase()
+        return values.joinToString(" ").lowercase()
     }
 
     private fun Any?.collectDeviceTargetText(): String {
@@ -469,8 +468,7 @@ object ApkMirrorApiClient {
             "wearos" in normalized ||
             "android wear" in normalized ||
             "androidwear" in normalized ||
-            "wearable" in normalized ||
-            Regex("\\bwatch\\b").containsMatchIn(normalized)
+            "wearable" in normalized
         ) {
             result += "wear"
         }
@@ -494,7 +492,10 @@ object ApkMirrorApiClient {
             result += "automotive"
         }
 
-        if ("android auto" in normalized || "androidauto" in normalized) {
+        if (
+            "android auto" in normalized ||
+            "androidauto" in normalized
+        ) {
             result += "auto"
         }
 
