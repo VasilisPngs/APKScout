@@ -1,4 +1,4 @@
-package com.apkscout.app.settings
+package com.apkscout.android.settings
 
 data class ReleaseChannelSettings(
     val includeDev: Boolean = false,

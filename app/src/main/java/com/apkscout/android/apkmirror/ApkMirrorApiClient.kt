@@ -1,8 +1,8 @@
-package com.apkscout.app.apkmirror
+package com.apkscout.android.apkmirror
 
 import android.os.Build
-import com.apkscout.app.InstalledApp
-import com.apkscout.app.UpdateInfo
+import com.apkscout.android.InstalledApp
+import com.apkscout.android.UpdateInfo
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import okhttp3.Credentials

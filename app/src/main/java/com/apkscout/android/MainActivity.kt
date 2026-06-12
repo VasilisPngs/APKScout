@@ -1,4 +1,4 @@
-package com.apkscout.app
+package com.apkscout.android
 
 import android.content.Context
 import android.content.Intent
@@ -77,12 +77,12 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.apkscout.app.apkmirror.ApkMirrorApiClient
-import com.apkscout.app.apkmirror.ApkMirrorSource
-import com.apkscout.app.settings.ReleaseChannelFilter
-import com.apkscout.app.settings.ReleaseChannelSettings
-import com.apkscout.app.settings.SettingsStore
-import com.apkscout.app.ui.SettingsScreen
+import com.apkscout.android.apkmirror.ApkMirrorApiClient
+import com.apkscout.android.apkmirror.ApkMirrorSource
+import com.apkscout.android.settings.ReleaseChannelFilter
+import com.apkscout.android.settings.ReleaseChannelSettings
+import com.apkscout.android.settings.SettingsStore
+import com.apkscout.android.ui.SettingsScreen
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.util.Locale
@@ -335,9 +335,8 @@ fun APKScoutScreen(
     onDarkModeChange: (Boolean) -> Unit
 ) {
     val context = LocalContext.current
-    val profile = rememberDeviceProfile(context)
 
-    var selectedFilter by remember { mutableStateOf(AppListFilter.ALL) }
+    var selectedFilter by remember { mutableStateOf(AppListFilter.UPDATES) }
     var searchQuery by remember { mutableStateOf("") }
     var scanRequest by remember { mutableIntStateOf(0) }
     var updateRequest by remember { mutableIntStateOf(0) }
@@ -451,24 +450,17 @@ fun APKScoutScreen(
                 }
             } else {
                 item {
-                    HeaderCard(
-                        profile = profile,
-                        totalCount = apps.size,
-                        visibleCount = homeVisibleApps.size,
-                        loadingApps = loadingApps,
-                        checkingUpdates = checkingUpdates,
-                        updateError = updateError
-                    )
-                }
-
-                item {
                     ControlsCard(
                         selectedFilter = selectedFilter,
+                        visibleCount = homeVisibleApps.size,
+                        totalCount = apps.size,
+                        loadingApps = loadingApps,
+                        checkingUpdates = checkingUpdates,
+                        updateError = updateError,
                         onFilterChange = { selectedFilter = it }
                     )
                 }
             }
-
             items(
                 items = activeVisibleApps,
                 key = { it.packageName }
@@ -618,39 +610,64 @@ fun HeaderCard(
 @Composable
 fun ControlsCard(
     selectedFilter: AppListFilter,
+    visibleCount: Int,
+    totalCount: Int,
+    loadingApps: Boolean,
+    checkingUpdates: Boolean,
+    updateError: String?,
     onFilterChange: (AppListFilter) -> Unit
 ) {
     UniformCard {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(6.dp)
+        Column(
+            verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            CompactFilterButton(
-                label = "All",
-                selected = selectedFilter == AppListFilter.ALL,
-                modifier = Modifier.weight(1f),
-                onClick = { onFilterChange(AppListFilter.ALL) }
-            )
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                CompactFilterButton(
+                    label = "Updates",
+                    selected = selectedFilter == AppListFilter.UPDATES,
+                    modifier = Modifier.weight(1f),
+                    onClick = { onFilterChange(AppListFilter.UPDATES) }
+                )
 
-            CompactFilterButton(
-                label = "User",
-                selected = selectedFilter == AppListFilter.USER,
-                modifier = Modifier.weight(1f),
-                onClick = { onFilterChange(AppListFilter.USER) }
-            )
+                CompactFilterButton(
+                    label = "User",
+                    selected = selectedFilter == AppListFilter.USER,
+                    modifier = Modifier.weight(1f),
+                    onClick = { onFilterChange(AppListFilter.USER) }
+                )
 
-            CompactFilterButton(
-                label = "System",
-                selected = selectedFilter == AppListFilter.SYSTEM,
-                modifier = Modifier.weight(1f),
-                onClick = { onFilterChange(AppListFilter.SYSTEM) }
-            )
+                CompactFilterButton(
+                    label = "System",
+                    selected = selectedFilter == AppListFilter.SYSTEM,
+                    modifier = Modifier.weight(1f),
+                    onClick = { onFilterChange(AppListFilter.SYSTEM) }
+                )
 
-            CompactFilterButton(
-                label = "Updates",
-                selected = selectedFilter == AppListFilter.UPDATES,
-                modifier = Modifier.weight(1f),
-                onClick = { onFilterChange(AppListFilter.UPDATES) }
+                CompactFilterButton(
+                    label = "All",
+                    selected = selectedFilter == AppListFilter.ALL,
+                    modifier = Modifier.weight(1f),
+                    onClick = { onFilterChange(AppListFilter.ALL) }
+                )
+            }
+
+            Text(
+                text = when {
+                    loadingApps -> "Loading apps..."
+                    checkingUpdates -> "$visibleCount of $totalCount visible • checking updates..."
+                    updateError != null -> "$visibleCount of $totalCount visible • update check failed"
+                    else -> "$visibleCount of $totalCount visible"
+                },
+                style = MaterialTheme.typography.bodyLarge,
+                fontWeight = FontWeight.SemiBold,
+                color = if (updateError == null) {
+                    MaterialTheme.colorScheme.onSurface
+                } else {
+                    MaterialTheme.colorScheme.error
+                }
             )
         }
     }

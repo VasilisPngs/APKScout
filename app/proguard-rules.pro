@@ -1,1 +1,1 @@
--keep class com.apkscout.app.** { *; }
+-keep class com.apkscout.android.** { *; }

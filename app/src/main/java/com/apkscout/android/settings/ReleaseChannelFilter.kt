@@ -1,4 +1,4 @@
-package com.apkscout.app.settings
+package com.apkscout.android.settings
 
 object ReleaseChannelFilter {
     private val devRegex = Regex("\\b(dev|nightly|canary|snapshot|internal)\\b", RegexOption.IGNORE_CASE)

@@ -1,4 +1,4 @@
-package com.apkscout.app.ui
+package com.apkscout.android.ui
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -22,7 +22,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import com.apkscout.app.settings.ReleaseChannelSettings
+import com.apkscout.android.settings.ReleaseChannelSettings
 
 @Composable
 fun SettingsScreen(

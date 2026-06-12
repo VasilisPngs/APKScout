@@ -1,4 +1,4 @@
-package com.apkscout.app.apkmirror
+package com.apkscout.android.apkmirror
 
 import android.net.Uri
 
