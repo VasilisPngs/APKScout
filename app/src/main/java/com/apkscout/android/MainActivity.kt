@@ -89,6 +89,9 @@ import java.util.Locale
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.runtime.rememberCoroutineScope
+import kotlinx.coroutines.launch
 
 data class InstalledApp(
     val label: String,
@@ -238,7 +241,10 @@ fun APKScoutRoot(
     var currentScreen by remember { mutableStateOf(RootScreen.HOME) }
     var releaseSettings by remember { mutableStateOf(SettingsStore.read(context)) }
 
-    Scaffold(
+        val homeListState = rememberLazyListState()
+    val homeScrollScope = rememberCoroutineScope()
+
+Scaffold(
         contentWindowInsets = WindowInsets(0, 0, 0, 0),
         bottomBar = {
             APKScoutBottomBar(
@@ -314,7 +320,10 @@ private fun APKScoutBottomBar(
         ) {
             NavigationBarItem(
                 selected = currentScreen == RootScreen.HOME,
-                onClick = { onScreenChange(RootScreen.HOME) },
+                onClick = {
+                onScreenChange(RootScreen.HOME)
+                homeScrollScope.launch { homeListState.animateScrollToItem(0) }
+            },
                 icon = {
                     Icon(
                         imageVector = Icons.Rounded.Home,
@@ -464,6 +473,7 @@ fun APKScoutScreen(
             .background(MaterialTheme.colorScheme.background)
     ) {
         LazyColumn(
+            state = homeListState,
             modifier = Modifier
                 .fillMaxSize()
                 .statusBarsPadding(),
