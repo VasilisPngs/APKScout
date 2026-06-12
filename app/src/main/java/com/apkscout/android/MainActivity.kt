@@ -17,6 +17,7 @@ import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -31,7 +32,6 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListState
@@ -48,11 +48,9 @@ import androidx.compose.material.icons.rounded.Settings
 import androidx.compose.material3.Button
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ElevatedCard
-import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.NavigationBarItemDefaults
 import androidx.compose.material3.OutlinedTextField
@@ -70,6 +68,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.platform.LocalContext
@@ -149,7 +148,7 @@ fun APKScoutTheme(
             background = Color(0xFF101114),
             surface = Color(0xFF1A1C20),
             surfaceVariant = Color(0xFF25282E),
-            primary = Color(0xFFE4E7EF),
+            primary = Color(0xFFE7EAF2),
             onPrimary = Color(0xFF111318),
             onBackground = Color(0xFFF2F4FA),
             onSurface = Color(0xFFF2F4FA),
@@ -184,7 +183,7 @@ fun APKScoutRoot(
     onDarkModeChange: (Boolean) -> Unit
 ) {
     val context = LocalContext.current
-    val homeListState = rememberLazyListState()
+    val listState = rememberLazyListState()
 
     var currentScreen by remember { mutableStateOf(RootScreen.HOME) }
     var releaseSettings by remember { mutableStateOf(SettingsStore.read(context)) }
@@ -192,7 +191,7 @@ fun APKScoutRoot(
     var searchQuery by remember { mutableStateOf("") }
     var scanRequest by remember { mutableIntStateOf(0) }
     var updateRequest by remember { mutableIntStateOf(0) }
-    var homeScrollRequest by remember { mutableIntStateOf(0) }
+    var scrollTopRequest by remember { mutableIntStateOf(0) }
     var apps by remember { mutableStateOf<List<InstalledApp>>(emptyList()) }
     var rawUpdates by remember { mutableStateOf<Map<String, UpdateInfo>>(emptyMap()) }
     var updateError by remember { mutableStateOf<String?>(null) }
@@ -262,7 +261,7 @@ fun APKScoutRoot(
         )
     }
 
-    val activeVisibleApps = if (currentScreen == RootScreen.SEARCH) {
+    val visibleApps = if (currentScreen == RootScreen.SEARCH) {
         searchVisibleApps
     } else {
         homeVisibleApps
@@ -272,10 +271,9 @@ fun APKScoutRoot(
         contentWindowInsets = WindowInsets(0, 0, 0, 0),
         topBar = {
             APKScoutTopBar(
-                currentScreen = currentScreen,
-                loading = loadingApps || checkingUpdates,
+                screen = currentScreen,
                 darkMode = darkMode,
-                updatesCount = updates.size,
+                loading = loadingApps || checkingUpdates,
                 onToggleTheme = { onDarkModeChange(!darkMode) },
                 onRefresh = { scanRequest++ }
             )
@@ -285,10 +283,11 @@ fun APKScoutRoot(
                 currentScreen = currentScreen,
                 onHomeClick = {
                     currentScreen = RootScreen.HOME
-                    homeScrollRequest++
+                    scrollTopRequest++
                 },
                 onSearchClick = {
                     currentScreen = RootScreen.SEARCH
+                    scrollTopRequest++
                 },
                 onSettingsClick = {
                     currentScreen = RootScreen.SETTINGS
@@ -301,12 +300,11 @@ fun APKScoutRoot(
             RootScreen.SEARCH -> {
                 APKScoutScreen(
                     modifier = Modifier.padding(innerPadding),
-                    listState = homeListState,
-                    homeScrollRequest = homeScrollRequest,
+                    listState = listState,
+                    scrollTopRequest = scrollTopRequest,
                     apps = apps,
                     updates = updates,
-                    homeVisibleApps = homeVisibleApps,
-                    activeVisibleApps = activeVisibleApps,
+                    visibleApps = visibleApps,
                     selectedFilter = selectedFilter,
                     searchQuery = searchQuery,
                     loadingApps = loadingApps,
@@ -324,6 +322,7 @@ fun APKScoutRoot(
                         .padding(innerPadding)
                         .fillMaxSize()
                         .background(MaterialTheme.colorScheme.background)
+                        .padding(horizontal = 14.dp, vertical = 8.dp)
                 ) {
                     SettingsScreen(
                         settings = releaseSettings,
@@ -361,13 +360,18 @@ fun APKScoutRoot(
 
 @Composable
 private fun APKScoutTopBar(
-    currentScreen: RootScreen,
-    loading: Boolean,
+    screen: RootScreen,
     darkMode: Boolean,
-    updatesCount: Int,
+    loading: Boolean,
     onToggleTheme: () -> Unit,
     onRefresh: () -> Unit
 ) {
+    val title = when (screen) {
+        RootScreen.HOME -> "APKScout"
+        RootScreen.SETTINGS -> "Settings"
+        RootScreen.SEARCH -> ""
+    }
+
     Surface(
         color = MaterialTheme.colorScheme.background,
         tonalElevation = 0.dp,
@@ -376,35 +380,16 @@ private fun APKScoutTopBar(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .statusBarsPadding()
-                .padding(start = 20.dp, top = 12.dp, end = 12.dp, bottom = 12.dp),
+                .padding(start = 18.dp, top = 42.dp, end = 14.dp, bottom = 10.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Column(
+            Text(
+                text = title,
                 modifier = Modifier.weight(1f),
-                verticalArrangement = Arrangement.spacedBy(2.dp)
-            ) {
-                Text(
-                    text = "APKScout",
-                    style = MaterialTheme.typography.headlineMedium,
-                    fontWeight = FontWeight.Bold,
-                    maxLines = 1
-                )
-
-                Text(
-                    text = when {
-                        loading -> "Working..."
-                        currentScreen == RootScreen.SEARCH -> "Search installed apps"
-                        currentScreen == RootScreen.SETTINGS -> "Settings"
-                        updatesCount == 1 -> "1 update available"
-                        else -> "$updatesCount updates available"
-                    },
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
-            }
+                style = MaterialTheme.typography.headlineMedium,
+                fontWeight = FontWeight.Bold,
+                maxLines = 1
+            )
 
             IconButton(onClick = onToggleTheme) {
                 Icon(
@@ -433,84 +418,97 @@ private fun APKScoutBottomBar(
     onSearchClick: () -> Unit,
     onSettingsClick: () -> Unit
 ) {
-    Surface(
-        color = MaterialTheme.colorScheme.surface,
-        tonalElevation = 0.dp,
-        shadowElevation = 0.dp
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(MaterialTheme.colorScheme.background)
+            .navigationBarsPadding()
+            .padding(start = 14.dp, end = 14.dp, bottom = 8.dp)
     ) {
-        NavigationBar(
+        Surface(
             modifier = Modifier
                 .fillMaxWidth()
-                .navigationBarsPadding()
-                .height(64.dp),
-            containerColor = MaterialTheme.colorScheme.surface,
+                .height(62.dp),
+            shape = RoundedCornerShape(28.dp),
+            color = MaterialTheme.colorScheme.surfaceVariant,
             tonalElevation = 0.dp,
-            windowInsets = WindowInsets(0, 0, 0, 0)
+            shadowElevation = 0.dp
         ) {
-            NavigationBarItem(
-                selected = currentScreen == RootScreen.HOME,
-                onClick = onHomeClick,
-                icon = {
-                    Icon(
-                        imageVector = Icons.Rounded.Home,
-                        contentDescription = "Home",
-                        modifier = Modifier.size(23.dp)
-                    )
-                },
-                label = null,
-                alwaysShowLabel = false,
-                colors = bottomBarItemColors()
-            )
+            Row(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(horizontal = 10.dp),
+                horizontalArrangement = Arrangement.SpaceEvenly,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                BottomBarItem(
+                    selected = currentScreen == RootScreen.HOME,
+                    onClick = onHomeClick,
+                    icon = {
+                        Icon(
+                            imageVector = Icons.Rounded.Home,
+                            contentDescription = "Home",
+                            modifier = Modifier.size(23.dp)
+                        )
+                    }
+                )
 
-            NavigationBarItem(
-                selected = currentScreen == RootScreen.SEARCH,
-                onClick = onSearchClick,
-                icon = {
-                    Icon(
-                        imageVector = Icons.Rounded.Search,
-                        contentDescription = "Search",
-                        modifier = Modifier.size(23.dp)
-                    )
-                },
-                label = null,
-                alwaysShowLabel = false,
-                colors = bottomBarItemColors()
-            )
+                BottomBarItem(
+                    selected = currentScreen == RootScreen.SEARCH,
+                    onClick = onSearchClick,
+                    icon = {
+                        Icon(
+                            imageVector = Icons.Rounded.Search,
+                            contentDescription = "Search",
+                            modifier = Modifier.size(23.dp)
+                        )
+                    }
+                )
 
-            NavigationBarItem(
-                selected = currentScreen == RootScreen.SETTINGS,
-                onClick = onSettingsClick,
-                icon = {
-                    Icon(
-                        imageVector = Icons.Rounded.Settings,
-                        contentDescription = "Settings",
-                        modifier = Modifier.size(23.dp)
-                    )
-                },
-                label = null,
-                alwaysShowLabel = false,
-                colors = bottomBarItemColors()
-            )
+                BottomBarItem(
+                    selected = currentScreen == RootScreen.SETTINGS,
+                    onClick = onSettingsClick,
+                    icon = {
+                        Icon(
+                            imageVector = Icons.Rounded.Settings,
+                            contentDescription = "Settings",
+                            modifier = Modifier.size(23.dp)
+                        )
+                    }
+                )
+            }
         }
     }
 }
 
 @Composable
-private fun bottomBarItemColors() = NavigationBarItemDefaults.colors(
-    selectedIconColor = MaterialTheme.colorScheme.onPrimary,
-    unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
-    indicatorColor = MaterialTheme.colorScheme.primary
-)
+private fun BottomBarItem(
+    selected: Boolean,
+    onClick: () -> Unit,
+    icon: @Composable () -> Unit
+) {
+    NavigationBarItem(
+        selected = selected,
+        onClick = onClick,
+        icon = icon,
+        label = null,
+        alwaysShowLabel = false,
+        colors = NavigationBarItemDefaults.colors(
+            selectedIconColor = MaterialTheme.colorScheme.onPrimary,
+            unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
+            indicatorColor = MaterialTheme.colorScheme.primary
+        )
+    )
+}
 
 @Composable
 fun APKScoutScreen(
     modifier: Modifier,
     listState: LazyListState,
-    homeScrollRequest: Int,
+    scrollTopRequest: Int,
     apps: List<InstalledApp>,
     updates: Map<String, UpdateInfo>,
-    homeVisibleApps: List<InstalledApp>,
-    activeVisibleApps: List<InstalledApp>,
+    visibleApps: List<InstalledApp>,
     selectedFilter: AppListFilter,
     searchQuery: String,
     loadingApps: Boolean,
@@ -522,8 +520,8 @@ fun APKScoutScreen(
 ) {
     val context = LocalContext.current
 
-    LaunchedEffect(homeScrollRequest) {
-        if (homeScrollRequest > 0) {
+    LaunchedEffect(scrollTopRequest) {
+        if (scrollTopRequest > 0) {
             listState.animateScrollToItem(0)
         }
     }
@@ -546,7 +544,7 @@ fun APKScoutScreen(
         ) {
             if (searchActive) {
                 item {
-                    SearchBarCard(
+                    SearchField(
                         query = searchQuery,
                         onQueryChange = onSearchQueryChange
                     )
@@ -555,8 +553,7 @@ fun APKScoutScreen(
                 item {
                     ControlsCard(
                         selectedFilter = selectedFilter,
-                        visibleCount = homeVisibleApps.size,
-                        totalCount = apps.size,
+                        updatesCount = updates.size,
                         loadingApps = loadingApps,
                         checkingUpdates = checkingUpdates,
                         updateError = updateError,
@@ -566,7 +563,7 @@ fun APKScoutScreen(
             }
 
             items(
-                items = activeVisibleApps,
+                items = visibleApps,
                 key = { it.packageName }
             ) { app ->
                 InstalledAppCard(
@@ -586,33 +583,30 @@ fun APKScoutScreen(
 }
 
 @Composable
-fun SearchBarCard(
+private fun SearchField(
     query: String,
     onQueryChange: (String) -> Unit
 ) {
-    UniformCard {
-        OutlinedTextField(
-            value = query,
-            onValueChange = onQueryChange,
-            modifier = Modifier.fillMaxWidth(),
-            singleLine = true,
-            shape = RoundedCornerShape(28.dp),
-            label = { Text("Search apps") },
-            leadingIcon = {
-                Icon(
-                    imageVector = Icons.Rounded.Search,
-                    contentDescription = null
-                )
-            }
-        )
-    }
+    OutlinedTextField(
+        value = query,
+        onValueChange = onQueryChange,
+        modifier = Modifier.fillMaxWidth(),
+        singleLine = true,
+        shape = RoundedCornerShape(28.dp),
+        label = { Text("Search apps") },
+        leadingIcon = {
+            Icon(
+                imageVector = Icons.Rounded.Search,
+                contentDescription = null
+            )
+        }
+    )
 }
 
 @Composable
 fun ControlsCard(
     selectedFilter: AppListFilter,
-    visibleCount: Int,
-    totalCount: Int,
+    updatesCount: Int,
     loadingApps: Boolean,
     checkingUpdates: Boolean,
     updateError: String?,
@@ -658,12 +652,13 @@ fun ControlsCard(
             Text(
                 text = when {
                     loadingApps -> "Loading apps..."
-                    checkingUpdates -> "$visibleCount of $totalCount visible • checking updates..."
-                    updateError != null -> "$visibleCount of $totalCount visible • update check failed"
-                    else -> "$visibleCount of $totalCount visible"
+                    checkingUpdates -> "Checking updates..."
+                    updateError != null -> "Update check failed"
+                    updatesCount == 1 -> "1 update available"
+                    else -> "$updatesCount updates available"
                 },
-                style = MaterialTheme.typography.bodyLarge,
-                fontWeight = FontWeight.SemiBold,
+                style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.Bold,
                 color = if (updateError == null) {
                     MaterialTheme.colorScheme.onSurface
                 } else {
@@ -683,20 +678,46 @@ private fun FilterTab(
     modifier: Modifier = Modifier,
     onClick: () -> Unit
 ) {
-    FilterChip(
-        selected = selected,
-        onClick = onClick,
-        modifier = modifier.height(42.dp),
-        label = {
-            Text(
-                text = label,
-                maxLines = 1,
-                overflow = TextOverflow.Clip,
-                fontSize = 12.sp,
-                fontWeight = if (selected) FontWeight.Bold else FontWeight.SemiBold
+    val shape = RoundedCornerShape(14.dp)
+
+    Box(
+        modifier = modifier
+            .height(42.dp)
+            .clip(shape)
+            .background(
+                color = if (selected) {
+                    MaterialTheme.colorScheme.primary
+                } else {
+                    MaterialTheme.colorScheme.surface
+                },
+                shape = shape
             )
-        }
-    )
+            .border(
+                width = 1.dp,
+                color = if (selected) {
+                    MaterialTheme.colorScheme.primary
+                } else {
+                    MaterialTheme.colorScheme.outline.copy(alpha = 0.70f)
+                },
+                shape = shape
+            )
+            .clickable(onClick = onClick)
+            .padding(horizontal = 4.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(
+            text = label,
+            maxLines = 1,
+            overflow = TextOverflow.Clip,
+            fontSize = 11.sp,
+            fontWeight = FontWeight.Bold,
+            color = if (selected) {
+                MaterialTheme.colorScheme.onPrimary
+            } else {
+                MaterialTheme.colorScheme.onSurface
+            }
+        )
+    }
 }
 
 @Composable

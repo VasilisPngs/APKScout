@@ -28,7 +28,7 @@ Android 16+ Kotlin/Compose app.
 
 ## Release asset
 
-`APKScout-v0.5.0.apk`
+`APKScout-v0.5.1.apk`
 
 - Package ID changed to `com.apkscout.android`
 - Home starts on Updates and no longer shows device hardware header
@@ -67,3 +67,13 @@ Android 16+ Kotlin/Compose app.
 - Refines update cards, navigation, filters, badges and action layout
 
 - Keeps scan/update state alive across Home, Search and Settings navigation
+
+- Refines the Material 3 baseline layout
+
+- Moves update count into the Home filter card
+
+- Removes duplicate page titles from Search and Settings
+
+- Adds scroll-to-top behavior for Search navigation
+
+- Reduces and rounds the bottom navigation container
