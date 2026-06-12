@@ -86,6 +86,9 @@ import com.apkscout.android.ui.SettingsScreen
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.util.Locale
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.ui.text.style.TextAlign
 
 data class InstalledApp(
     val label: String,
@@ -159,19 +162,32 @@ private fun PackageFormatLabel(
         ?: "APK"
 
     Surface(
-        modifier = modifier,
+        modifier = modifier.heightIn(min = 40.dp),
         shape = RoundedCornerShape(999.dp),
-        color = MaterialTheme.colorScheme.secondaryContainer,
-        contentColor = MaterialTheme.colorScheme.onSecondaryContainer
-    ) {
-        Text(
-            text = label,
-            style = MaterialTheme.typography.labelMedium,
-            modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
-            maxLines = 1
+        color = MaterialTheme.colorScheme.surfaceVariant,
+        contentColor = MaterialTheme.colorScheme.onSurfaceVariant,
+        border = BorderStroke(
+            width = 1.dp,
+            color = MaterialTheme.colorScheme.outline.copy(alpha = 0.30f)
         )
+    ) {
+        Box(
+            modifier = Modifier
+                .heightIn(min = 40.dp)
+                .padding(horizontal = 18.dp),
+            contentAlignment = Alignment.Center
+        ) {
+            Text(
+                text = label,
+                style = MaterialTheme.typography.labelLarge,
+                fontWeight = FontWeight.SemiBold,
+                textAlign = TextAlign.Center,
+                maxLines = 1
+            )
+        }
     }
 }
+
 
 @Composable
 fun APKScoutTheme(
@@ -769,7 +785,7 @@ fun InstalledAppCard(
         Row(
             modifier = Modifier.padding(horizontal = 16.dp, vertical = 16.dp),
             horizontalArrangement = Arrangement.spacedBy(14.dp),
-            verticalAlignment = Alignment.Top
+            verticalAlignment = Alignment.CenterVertically
         ) {
             app.icon?.let {
                 Image(
@@ -785,7 +801,7 @@ fun InstalledAppCard(
             ) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.Top
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
                     Column(
                         modifier = Modifier.weight(1f),

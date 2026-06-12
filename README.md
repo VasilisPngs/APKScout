@@ -28,7 +28,7 @@ Android 16+ Kotlin/Compose app.
 
 ## Release asset
 
-`APKScout-v0.4.6.apk`
+`APKScout-v0.4.7.apk`
 
 - Package ID changed to `com.apkscout.android`
 - Home starts on Updates and no longer shows device hardware header
@@ -47,3 +47,9 @@ Android 16+ Kotlin/Compose app.
 - Adds DPI-aware APKMirror variant selection with exact, nodpi/anydpi and closest-density ranking
 
 - Improves APKMirror bundle detection so BUNDLE variants are shown as APKM
+
+- Rewrites APKMirror variant selection to prefer stable release variants over beta, alpha, RC, preview and lite-release variants
+
+- Shows APK when a compatible release contains any plain APK variant and APKM only when compatible variants are bundle-only
+
+- Keeps device target, SDK, ABI and DPI-aware filtering in one clean APKMirror client
