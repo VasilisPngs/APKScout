@@ -154,21 +154,17 @@ object ApkMirrorApiClient {
     private fun JSONObject.detectPackageFormat(): String {
     val metadata = packageFormatMetadata()
 
-    return when {
-        "apkm" in metadata -> "APKM"
-        "apks" in metadata -> "APKS"
-        "xapk" in metadata -> "XAPK"
-        "bundle" in metadata || "split" in metadata -> "BUNDLE"
-        else -> "APK"
+    return if ("apkm" in metadata || "bundle" in metadata) {
+        "APKM"
+    } else {
+        "APK"
     }
 }
 
 private fun packageFormatScore(apk: JSONObject): Int {
     return when (apk.detectPackageFormat()) {
-        "APK" -> 4
-        "APKM", "APKS" -> 3
-        "XAPK" -> 2
-        "BUNDLE" -> 1
+        "APK" -> 2
+        "APKM" -> 1
         else -> 0
     }
 }

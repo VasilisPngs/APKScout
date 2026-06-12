@@ -34,6 +34,6 @@ Android 16+ Kotlin/Compose app.
 - Home starts on Updates and no longer shows device hardware header
 - Home filter order is Updates, User, System, All with visible count below
 
-- Tightened APKMirror compatibility filtering and shows APK/APKM/APKS format labels
+- Tightened APKMirror compatibility filtering and shows APK/APKM format labels
 
-- Moves APK/APKM/APKS/XAPK/BUNDLE format labels next to the APKMirror action
+- Moves APK/APKM format labels next to the APKMirror action
