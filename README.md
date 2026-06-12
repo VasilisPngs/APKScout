@@ -28,7 +28,7 @@ Android 16+ Kotlin/Compose app.
 
 ## Release asset
 
-`APKScout-v0.4.9.apk`
+`APKScout-v0.5.0.apk`
 
 - Package ID changed to `com.apkscout.android`
 - Home starts on Updates and no longer shows device hardware header
@@ -59,3 +59,11 @@ Android 16+ Kotlin/Compose app.
 - Keeps installed app and update state alive while navigating between Home, Search and Settings
 
 - Refreshes apps only on first launch or when pressing Refresh
+
+- Introduces a cleaner Material 3 interface baseline
+
+- Moves the app header into a persistent Material-style top area
+
+- Refines update cards, navigation, filters, badges and action layout
+
+- Keeps scan/update state alive across Home, Search and Settings navigation
