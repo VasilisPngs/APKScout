@@ -136,43 +136,6 @@ class MainActivity : ComponentActivity() {
     }
 }
 
-private fun normalizeApkMirrorPackageFormat(value: Any?): String {
-    val source = value
-        ?.toString()
-        .orEmpty()
-        .trim()
-        .lowercase()
-
-    return when {
-        source.contains("apkm") -> "APKM"
-        source.contains("apk bundle") -> "APKM"
-        source.contains("bundle") -> "APKM"
-        source.contains("split apk") -> "APKM"
-        source.contains("split-apk") -> "APKM"
-        source.contains("splits") -> "APKM"
-        else -> "APK"
-    }
-}
-
-private fun detectApkMirrorPackageFormat(source: Any?): String {
-    val html = source
-        ?.toString()
-        .orEmpty()
-        .replace("&nbsp;", " ")
-        .replace("&#160;", " ")
-        .replace("\\s+".toRegex(), " ")
-        .lowercase()
-
-    val bundleBadge = Regex(""">\s*bundle\s*<|\bbundle\b|\bapk bundle\b|\bapkm\b|\bsplit apk\b|\bsplits\b""")
-
-    return if (bundleBadge.containsMatchIn(html)) {
-        "APKM"
-    } else {
-        "APK"
-    }
-}
-
-
 @Composable
 fun APKScoutTheme(
     darkMode: Boolean,
@@ -248,7 +211,7 @@ fun APKScoutRoot(
         updateError = null
         rawUpdates = emptyMap()
 
-        apps = withContext(Dispatchers.Default) {
+        apps = withContext(Dispatchers.IO) {
             scanInstalledApps(packageManager = context.packageManager)
         }
 
@@ -677,8 +640,6 @@ private fun SearchField(
 @Composable
 fun ControlsCard(
     selectedFilter: AppListFilter,
-    visibleCount: Int = 0,
-    totalCount: Int = 0,
     updatesCount: Int,
     loadingApps: Boolean,
     checkingUpdates: Boolean,
@@ -869,7 +830,7 @@ fun InstalledAppCard(
                     update?.formatLabel
                         ?.trim()
                         ?.takeIf { it.isNotEmpty() }
-                        ?.let { formatLabel ->
+                        ?.let {
                             PackageFormatLabel(format = packageFormatLabel)
                         }
 

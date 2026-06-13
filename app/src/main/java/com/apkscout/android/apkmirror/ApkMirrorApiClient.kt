@@ -8,7 +8,6 @@ import com.apkscout.android.UpdateInfo
 import kotlin.math.abs
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
-import okhttp3.Credentials
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.Request
@@ -18,6 +17,43 @@ import org.json.JSONArray
 import org.json.JSONObject
 import java.util.concurrent.TimeUnit
 
+private val NON_PRIMARY_TRACK_REGEX = listOf(
+    Regex("\\bbeta\\b"),
+    Regex("\\balpha\\b"),
+    Regex("\\bcanary\\b"),
+    Regex("\\bnightly\\b"),
+    Regex("\\bpreview\\b"),
+    Regex("\\bprerelease\\b"),
+    Regex("\\bpre release\\b"),
+    Regex("\\brc\\d*\\b"),
+    Regex("\\bdeveloper preview\\b"),
+    Regex("\\blite release\\b")
+)
+
+private val APKM_BUNDLE_REGEX = Regex("\\bbundles?\\b")
+
+private val PLAIN_APK_REGEX = listOf(
+    Regex("\\bapk files?\\b"),
+    Regex("\\bplain apk\\b"),
+    Regex("\\bapk type\\s*apk\\b"),
+    Regex("\\bfile type\\s*apk\\b"),
+    Regex("\\bvariant type\\s*apk\\b"),
+    Regex("\\bdownload type\\s*apk\\b"),
+    Regex("\\bformat\\s*apk\\b")
+)
+
+private val PLAIN_APK_BARE_REGEX = Regex("\\bapk\\b")
+
+private val SDK_API_REGEX = Regex("api\\s*(\\d+)")
+private val SDK_SDK_REGEX = Regex("sdk\\D*(\\d+)")
+private val SDK_BARE_REGEX = Regex("\\d+")
+private val SDK_ANDROID_REGEX = Regex("android\\s*(\\d+)(?:\\.\\d+)?")
+
+private val WATCH_TRUE_REGEX = Regex("\\bwatch\\s*true\\b")
+private val WEAR_TRUE_REGEX = Regex("\\bwear\\s*true\\b")
+private val TV_TRUE_REGEX = Regex("\\btv\\s*true\\b")
+private val VR_REGEX = Regex("\\bvr\\b")
+
 data class ApkMirrorCheckResult(
     val updates: Map<String, UpdateInfo>,
     val error: String?
@@ -25,8 +61,6 @@ data class ApkMirrorCheckResult(
 
 object ApkMirrorApiClient {
     private const val ENDPOINT = "https://www.apkmirror.com/wp-json/apkm/v1/app_exists/"
-    private const val API_USER = "api-apkupdater"
-    private const val API_TOKEN = "rm5rcfruUjKy04sMpyMPJXW8"
     private const val PACKAGE_CHUNK_SIZE = 60
 
     private val jsonMediaType = "application/json; charset=utf-8".toMediaType()
@@ -82,7 +116,6 @@ object ApkMirrorApiClient {
         val request = Request.Builder()
             .url(ENDPOINT)
             .header("User-Agent", "APKScout/${Build.VERSION.SDK_INT}")
-            .header("Authorization", Credentials.basic(API_USER, API_TOKEN))
             .post(bodyJson.toString().toRequestBody(jsonMediaType))
             .build()
 
@@ -157,7 +190,8 @@ object ApkMirrorApiClient {
                 ?: continue
 
             val releaseUrl = ApkMirrorSource.absoluteUrl(release.optString("link"))
-                ?: selection.apk.optString("link").takeIf { it.isNotBlank() }?.let { ApkMirrorSource.absoluteUrl(it) }
+                ?: selection.apk.optString("link").takeIf { it.isNotBlank() }
+                    ?.let { ApkMirrorSource.absoluteUrl(it) }
                 ?: ApkMirrorSource.searchUrl(packageName).toString()
 
             updates[packageName] = UpdateInfo(
@@ -165,11 +199,8 @@ object ApkMirrorApiClient {
                 versionCode = foundVersionCode,
                 url = releaseUrl,
                 formatLabel = selection.formatLabel,
-    packageFormat = resolveApkMirrorPackageFormat(
-        html = body,
-        versionCode = foundVersionCode,
-        url = releaseUrl
-    ))
+                packageFormat = selection.packageFormat
+            )
         }
 
         return updates
@@ -177,7 +208,8 @@ object ApkMirrorApiClient {
 
     private data class ApkSelection(
         val apk: JSONObject,
-        val formatLabel: String
+        val formatLabel: String,
+        val packageFormat: String
     )
 
     private fun selectBestApk(
@@ -212,9 +244,12 @@ object ApkMirrorApiClient {
                 .thenBy { packageFormatScore(it) }
         ) ?: return null
 
+        val format = detectDisplayedPackageFormat(candidates, release, item)
+
         return ApkSelection(
             apk = bestApk,
-            formatLabel = detectDisplayedPackageFormat(candidates, release, item)
+            formatLabel = format,
+            packageFormat = format
         )
     }
 
@@ -233,59 +268,13 @@ object ApkMirrorApiClient {
     }
 
     private fun JSONObject.variantTrackMetadata(): String {
-        val values = mutableListOf<String>()
-
         val keys = listOf(
-            "name",
-            "title",
-            "label",
-            "slug",
-            "link",
-            "url",
-            "download_url",
-            "filename",
-            "file_name",
-            "variant",
-            "variant_name",
-            "variant_title",
-            "channel",
-            "track"
+            "name", "title", "label", "slug", "link", "url",
+            "download_url", "filename", "file_name", "variant",
+            "variant_name", "variant_title", "channel", "track"
         )
 
-        keys.forEach { key ->
-            val value = opt(key)
-
-            if (value != null && value != JSONObject.NULL) {
-                values += key
-                values += value.collectVariantTrackText()
-            }
-        }
-
-        return values.joinToString(" ").lowercase()
-    }
-
-    private fun Any?.collectVariantTrackText(): String {
-        return when (this) {
-            null, JSONObject.NULL -> ""
-            is JSONArray -> {
-                (0 until length()).joinToString(" ") { index ->
-                    opt(index).collectVariantTrackText()
-                }
-            }
-            is JSONObject -> {
-                val values = mutableListOf<String>()
-                val iterator = keys()
-
-                while (iterator.hasNext()) {
-                    val key = iterator.next()
-                    values += key
-                    values += opt(key).collectVariantTrackText()
-                }
-
-                values.joinToString(" ")
-            }
-            else -> toString()
-        }
+        return collectJsonText(keys).lowercase()
     }
 
     private fun String.containsNonPrimaryTrackSignal(): Boolean {
@@ -294,16 +283,7 @@ object ApkMirrorApiClient {
             .replace("-", " ")
             .replace(".", " ")
 
-        return Regex("\\bbeta\\b").containsMatchIn(normalized) ||
-            Regex("\\balpha\\b").containsMatchIn(normalized) ||
-            Regex("\\bcanary\\b").containsMatchIn(normalized) ||
-            Regex("\\bnightly\\b").containsMatchIn(normalized) ||
-            Regex("\\bpreview\\b").containsMatchIn(normalized) ||
-            Regex("\\bprerelease\\b").containsMatchIn(normalized) ||
-            Regex("\\bpre release\\b").containsMatchIn(normalized) ||
-            Regex("\\brc\\d*\\b").containsMatchIn(normalized) ||
-            Regex("\\bdeveloper preview\\b").containsMatchIn(normalized) ||
-            Regex("\\blite release\\b").containsMatchIn(normalized)
+        return NON_PRIMARY_TRACK_REGEX.any { it.containsMatchIn(normalized) }
     }
 
     private fun detectDisplayedPackageFormat(
@@ -409,8 +389,7 @@ object ApkMirrorApiClient {
             "split config" in normalized ||
             "base split" in normalized ||
             "base config" in normalized ||
-            Regex("\\bbundle\\b").containsMatchIn(normalized) ||
-            Regex("\\bbundles\\b").containsMatchIn(normalized)
+            APKM_BUNDLE_REGEX.containsMatchIn(normalized)
     }
 
     private fun String.containsPlainApkSignal(): Boolean {
@@ -420,19 +399,7 @@ object ApkMirrorApiClient {
             .replace("%5b", "[")
             .replace("%5d", "]")
 
-        if (
-            Regex("\\bapk files\\b").containsMatchIn(strong) ||
-            Regex("\\bapk file\\b").containsMatchIn(strong) ||
-            Regex("\\bplain apk\\b").containsMatchIn(strong) ||
-            Regex("\\bapk type\\s*apk\\b").containsMatchIn(strong) ||
-            Regex("\\bfile type\\s*apk\\b").containsMatchIn(strong) ||
-            Regex("\\bvariant type\\s*apk\\b").containsMatchIn(strong) ||
-            Regex("\\bdownload type\\s*apk\\b").containsMatchIn(strong) ||
-            Regex("\\bformat\\s*apk\\b").containsMatchIn(strong)
-        ) {
-            return true
-        }
-
+        if (PLAIN_APK_REGEX.any { it.containsMatchIn(strong) }) return true
         if (containsApkmSignal()) return false
 
         val normalized = strong
@@ -441,7 +408,7 @@ object ApkMirrorApiClient {
             .replace("apk download", " ")
             .replace("apkm", " ")
 
-        return Regex("\\bapk\\b").containsMatchIn(normalized)
+        return PLAIN_APK_BARE_REGEX.containsMatchIn(normalized)
     }
 
     private data class DeviceTargetProfile(
@@ -484,11 +451,7 @@ object ApkMirrorApiClient {
 
         if (targets.isEmpty()) return 1
 
-        return if (isDeviceTargetCompatible(apk, packageManager)) {
-            2
-        } else {
-            0
-        }
+        return if (isDeviceTargetCompatible(apk, packageManager)) 2 else 0
     }
 
     private fun PackageManager?.deviceTargetProfile(): DeviceTargetProfile {
@@ -520,82 +483,19 @@ object ApkMirrorApiClient {
     }
 
     private fun JSONObject.deviceTargetMetadata(): String {
-        val values = mutableListOf<String>()
-
         val keys = listOf(
-            "name",
-            "title",
-            "label",
-            "slug",
-            "link",
-            "url",
-            "html_url",
-            "download_url",
-            "release",
-            "releases",
-            "release_name",
-            "release_title",
-            "release_link",
-            "release_url",
-            "app",
-            "apps",
-            "app_name",
-            "app_title",
-            "platform",
-            "platforms",
-            "device",
-            "devices",
-            "device_type",
-            "device_types",
-            "target",
-            "targets",
-            "targeting",
-            "android_variant",
-            "android_variants",
-            "form_factor",
-            "form_factors",
-            "supported_devices",
-            "supported_device",
-            "supported_platforms",
-            "features",
-            "requirements",
-            "tags"
+            "name", "title", "label", "slug", "link", "url",
+            "html_url", "download_url", "release", "releases",
+            "release_name", "release_title", "release_link", "release_url",
+            "app", "apps", "app_name", "app_title", "platform", "platforms",
+            "device", "devices", "device_type", "device_types",
+            "target", "targets", "targeting", "android_variant",
+            "android_variants", "form_factor", "form_factors",
+            "supported_devices", "supported_device", "supported_platforms",
+            "features", "requirements", "tags"
         )
 
-        keys.forEach { key ->
-            val value = opt(key)
-
-            if (value != null && value != JSONObject.NULL) {
-                values += key
-                values += value.collectDeviceTargetText()
-            }
-        }
-
-        return values.joinToString(" ").lowercase()
-    }
-
-    private fun Any?.collectDeviceTargetText(): String {
-        return when (this) {
-            null, JSONObject.NULL -> ""
-            is JSONArray -> {
-                (0 until length()).joinToString(" ") { index ->
-                    opt(index).collectDeviceTargetText()
-                }
-            }
-            is JSONObject -> {
-                val values = mutableListOf<String>()
-                val iterator = keys()
-
-                while (iterator.hasNext()) {
-                    val key = iterator.next()
-                    values += key
-                    values += opt(key).collectDeviceTargetText()
-                }
-
-                values.joinToString(" ")
-            }
-            else -> toString()
-        }
+        return collectJsonText(keys).lowercase()
     }
 
     private fun extractDeviceTargetTokens(raw: String): Set<String> {
@@ -606,11 +506,7 @@ object ApkMirrorApiClient {
 
         val result = linkedSetOf<String>()
 
-        if (
-            "phone" in normalized ||
-            "mobile" in normalized ||
-            "handheld" in normalized
-        ) {
+        if ("phone" in normalized || "mobile" in normalized || "handheld" in normalized) {
             result += "phone"
         }
 
@@ -624,8 +520,8 @@ object ApkMirrorApiClient {
             "android wear" in normalized ||
             "androidwear" in normalized ||
             "wearable" in normalized ||
-            Regex("\\bwatch\\s*true\\b").containsMatchIn(normalized) ||
-            Regex("\\bwear\\s*true\\b").containsMatchIn(normalized)
+            WATCH_TRUE_REGEX.containsMatchIn(normalized) ||
+            WEAR_TRUE_REGEX.containsMatchIn(normalized)
         ) {
             result += "wear"
         }
@@ -634,7 +530,7 @@ object ApkMirrorApiClient {
             "android tv" in normalized ||
             "androidtv" in normalized ||
             "leanback" in normalized ||
-            Regex("\\btv\\s*true\\b").containsMatchIn(normalized)
+            TV_TRUE_REGEX.containsMatchIn(normalized)
         ) {
             result += "tv"
         }
@@ -662,7 +558,7 @@ object ApkMirrorApiClient {
             result += "cardboard"
         }
 
-        if (Regex("\\bvr\\b").containsMatchIn(normalized)) {
+        if (VR_REGEX.containsMatchIn(normalized)) {
             result += "vr"
         }
 
@@ -732,18 +628,7 @@ object ApkMirrorApiClient {
             "universal" in normalized
 
         val allowedDensities = listOf(
-            120,
-            160,
-            213,
-            240,
-            280,
-            320,
-            360,
-            400,
-            420,
-            480,
-            560,
-            640
+            120, 160, 213, 240, 280, 320, 360, 400, 420, 480, 560, 640
         )
 
         val densityPattern = allowedDensities.joinToString("|")
@@ -784,54 +669,40 @@ object ApkMirrorApiClient {
     }
 
     private fun JSONObject.dpiTargetMetadata(): String {
-        val values = mutableListOf<String>()
-
         val keys = listOf(
-            "dpi",
-            "dpis",
-            "density",
-            "densities",
-            "density_dpi",
-            "screen_density",
-            "screen_densities",
-            "display_density",
-            "display_densities",
-            "variant_dpi",
-            "variant_density",
-            "supported_dpi",
-            "supported_dpis",
-            "supported_density",
-            "supported_densities",
-            "resolution",
-            "resolutions",
-            "filename",
-            "file_name",
-            "name",
-            "title",
-            "label",
-            "link",
-            "url",
-            "download_url"
+            "dpi", "dpis", "density", "densities", "density_dpi",
+            "screen_density", "screen_densities", "display_density",
+            "display_densities", "variant_dpi", "variant_density",
+            "supported_dpi", "supported_dpis", "supported_density",
+            "supported_densities", "resolution", "resolutions",
+            "filename", "file_name", "name", "title", "label", "link",
+            "url", "download_url"
         )
+
+        return collectJsonText(keys)
+    }
+
+    private fun JSONObject.collectJsonText(keys: List<String>): String {
+        val values = mutableListOf<String>()
 
         keys.forEach { key ->
             val value = opt(key)
 
             if (value != null && value != JSONObject.NULL) {
                 values += key
-                values += value.collectDpiTargetText()
+                values += value.collectJsonText()
             }
         }
 
         return values.joinToString(" ")
     }
 
-    private fun Any?.collectDpiTargetText(): String {
+    private fun Any?.collectJsonText(): String {
         return when (this) {
             null, JSONObject.NULL -> ""
             is JSONArray -> {
                 (0 until length()).joinToString(" ") { index ->
-                    opt(index).collectDpiTargetText()
+                    opt(index).collectJsonText()
                 }
             }
             is JSONObject -> {
@@ -841,7 +712,7 @@ object ApkMirrorApiClient {
                 while (iterator.hasNext()) {
                     val key = iterator.next()
                     values += key
-                    values += opt(key).collectDpiTargetText()
+                    values += opt(key).collectJsonText()
                 }
 
                 values.joinToString(" ")
@@ -852,23 +723,13 @@ object ApkMirrorApiClient {
 
     private fun isSdkCompatible(apk: JSONObject): Boolean {
         val minApi = apk.firstString(
-            "minapi",
-            "min_api",
-            "minSdk",
-            "min_sdk",
-            "minsdk",
-            "minimum_api",
-            "minimum_android"
+            "minapi", "min_api", "minSdk", "min_sdk", "minsdk",
+            "minimum_api", "minimum_android"
         )
 
         val maxApi = apk.firstString(
-            "maxapi",
-            "max_api",
-            "maxSdk",
-            "max_sdk",
-            "maxsdk",
-            "maximum_api",
-            "maximum_android"
+            "maxapi", "max_api", "maxSdk", "max_sdk", "maxsdk",
+            "maximum_api", "maximum_android"
         )
 
         return isMinApiCompatible(minApi) && isMaxApiCompatible(maxApi)
@@ -889,26 +750,14 @@ object ApkMirrorApiClient {
 
         if (value.isBlank()) return null
 
-        Regex("api\\s*(\\d{1,2})")
-            .find(value)
-            ?.groupValues
-            ?.getOrNull(1)
-            ?.toIntOrNull()
-            ?.let { return it }
+        SDK_API_REGEX.find(value)?.groupValues?.getOrNull(1)?.toIntOrNull()?.let { return it }
+        SDK_SDK_REGEX.find(value)?.groupValues?.getOrNull(1)?.toIntOrNull()?.let { return it }
 
-        Regex("sdk\\D*(\\d{1,2})")
-            .find(value)
-            ?.groupValues
-            ?.getOrNull(1)
-            ?.toIntOrNull()
-            ?.let { return it }
-
-        if (value.matches(Regex("\\d{1,2}"))) {
+        if (SDK_BARE_REGEX.matches(value)) {
             return value.toIntOrNull()
         }
 
-        Regex("android\\s*(\\d{1,2})(?:\\.\\d+)?")
-            .find(value)
+        SDK_ANDROID_REGEX.find(value)
             ?.groupValues
             ?.getOrNull(1)
             ?.toIntOrNull()
@@ -1048,53 +897,3 @@ object ApkMirrorApiClient {
             .ifBlank { "empty response body" }
     }
 }
-private fun resolveApkMirrorPackageFormat(
-    html: String,
-    versionCode: Long,
-    url: String
-): String {
-    val urlUpper = url.uppercase()
-
-    if (urlUpper.contains(".APKM") || urlUpper.contains("/APKM/")) {
-        return "APKM"
-    }
-
-    val code = versionCode.toString()
-
-    if (code.isBlank() || code == "0") {
-        return "APK"
-    }
-
-    val rowCandidates = buildList {
-        Regex("(?is)<tr[^>]*>.*?</tr>").findAll(html).forEach { add(it.value) }
-        Regex("(?is)<li[^>]*>.*?</li>").findAll(html).forEach { add(it.value) }
-        Regex("(?is)<div[^>]*(?:table-row|variant|download)[^>]*>.*?</div>").findAll(html).forEach { add(it.value) }
-    }
-
-    val exactRows = rowCandidates.filter { it.contains(code) }
-
-    if (exactRows.isEmpty()) {
-        return "APK"
-    }
-
-    return if (exactRows.any { row ->
-            val rowText = row
-                .replace("&nbsp;", " ")
-                .replace("&#8211;", "-")
-                .replace("&#8212;", "-")
-                .replace("&amp;", "&")
-                .replace(Regex("<[^>]+>"), " ")
-                .replace(Regex("\\s+"), " ")
-                .trim()
-                .uppercase()
-
-            rowText.contains("BUNDLE") || rowText.contains("APKM") || rowText.contains("APK BUNDLE")
-        }
-    ) {
-        "APKM"
-    } else {
-        "APK"
-    }
-}
-
-
